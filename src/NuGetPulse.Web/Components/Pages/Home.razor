@@ -18,7 +18,7 @@
                    @bind:event="oninput"
                    @onkeydown="OnKeyDown"
                    type="search"
-                   placeholder="Search packages… e.g. TaLibStandard, Newtonsoft.Json"
+                   placeholder="Search packages… e.g. Atypical.TechnicalAnalysis.Functions, Newtonsoft.Json"
                    class="search-input"
                    autocomplete="off" />
             <button @onclick="DoSearch" class="search-btn" disabled="@_loading">
@@ -88,7 +88,7 @@
 
     private static readonly string[] FeaturedPackages =
     [
-        "TaLibStandard", "Newtonsoft.Json", "Serilog", "MediatR",
+        "Atypical.TechnicalAnalysis.Functions", "Newtonsoft.Json", "Serilog", "MediatR",
         "FluentValidation", "Polly", "AutoMapper", "Dapper",
         "EntityFramework", "AWSSDK.Core"
     ];

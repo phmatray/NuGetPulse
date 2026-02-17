@@ -12,7 +12,7 @@
 
 ## Screenshot
 
-> _Screenshot coming soon — run locally or visit the live demo above._
+![NuGetPulse dashboard — dark mode home screen](docs/images/nugetpulse-home.png)
 
 ---
 
