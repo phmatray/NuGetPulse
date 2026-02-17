@@ -1,0 +1,134 @@
+@page "/"
+@rendermode InteractiveServer
+@using NuGetPulse.Web.Models
+@using NuGetPulse.Web.Services
+@inject NuGetService NuGetService
+@inject NavigationManager Nav
+
+<PageTitle>NuGetPulse — Monitor your NuGet packages</PageTitle>
+
+<div class="hero">
+    <div class="hero-inner">
+        <div class="hero-icon">📦</div>
+        <h1 class="hero-title">NuGet<span class="accent">Pulse</span></h1>
+        <p class="hero-subtitle">Real-time download stats, version trends, and health scores for any NuGet package.</p>
+
+        <div class="search-bar">
+            <input @bind="_query"
+                   @bind:event="oninput"
+                   @onkeydown="OnKeyDown"
+                   type="search"
+                   placeholder="Search packages… e.g. TaLibStandard, Newtonsoft.Json"
+                   class="search-input"
+                   autocomplete="off" />
+            <button @onclick="DoSearch" class="search-btn" disabled="@_loading">
+                @if (_loading) { <span class="spinner"></span> } else { <span>Search</span> }
+            </button>
+        </div>
+
+        @if (_error is not null)
+        {
+            <p class="search-error">@_error</p>
+        }
+    </div>
+</div>
+
+@if (_results.Count > 0)
+{
+    <section class="results-section">
+        <h2 class="section-title">Results</h2>
+        <div class="results-grid">
+            @foreach (var pkg in _results)
+            {
+                <a class="pkg-card" href="/package/@pkg.Id">
+                    <div class="pkg-card-header">
+                        @if (!string.IsNullOrEmpty(pkg.IconUrl))
+                        {
+                            <img src="@pkg.IconUrl" alt="@pkg.Id icon" class="pkg-icon" onerror="this.style.display='none'" />
+                        }
+                        else
+                        {
+                            <div class="pkg-icon-placeholder">📦</div>
+                        }
+                        <div>
+                            <div class="pkg-id">@pkg.Id</div>
+                            <div class="pkg-version">v@pkg.Version</div>
+                        </div>
+                    </div>
+                    <p class="pkg-description">@Truncate(pkg.Description, 100)</p>
+                    <div class="pkg-downloads">
+                        <span class="dl-icon">⬇</span>
+                        @FormatDownloads(pkg.TotalDownloads)
+                    </div>
+                </a>
+            }
+        </div>
+    </section>
+}
+
+<section class="featured-section">
+    <h2 class="section-title">Featured packages</h2>
+    <div class="featured-chips">
+        @foreach (var pkg in FeaturedPackages)
+        {
+            <a class="chip" href="/package/@pkg">@pkg</a>
+        }
+    </div>
+</section>
+
+<footer class="site-footer">
+    <p>Built with ❤️ in .NET 10 · <a href="https://www.nuget.org" target="_blank">nuget.org</a></p>
+</footer>
+
+@code {
+    private string _query = string.Empty;
+    private bool _loading;
+    private string? _error;
+    private List<PackageSearchResult> _results = [];
+
+    private static readonly string[] FeaturedPackages =
+    [
+        "TaLibStandard", "Newtonsoft.Json", "Serilog", "MediatR",
+        "FluentValidation", "Polly", "AutoMapper", "Dapper",
+        "EntityFramework", "AWSSDK.Core"
+    ];
+
+    private async Task DoSearch()
+    {
+        if (string.IsNullOrWhiteSpace(_query)) return;
+        _loading = true;
+        _error = null;
+        _results = [];
+        StateHasChanged();
+
+        try
+        {
+            _results = await NuGetService.SearchAsync(_query.Trim(), take: 9);
+            if (_results.Count == 0)
+                _error = $"No packages found for \"{_query}\".";
+        }
+        catch
+        {
+            _error = "Search failed — NuGet API might be temporarily unavailable.";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task OnKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await DoSearch();
+    }
+
+    private static string Truncate(string? s, int max)
+        => s is null ? string.Empty : s.Length <= max ? s : s[..max] + "…";
+
+    private static string FormatDownloads(long n) => n switch
+    {
+        >= 1_000_000 => $"{n / 1_000_000.0:F1}M downloads",
+        >= 1_000     => $"{n / 1_000.0:F1}K downloads",
+        _            => $"{n} downloads"
+    };
+}

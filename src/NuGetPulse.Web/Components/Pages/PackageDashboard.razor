@@ -1,0 +1,221 @@
+@page "/package/{PackageId}"
+@rendermode InteractiveServer
+@using NuGetPulse.Web.Models
+@using NuGetPulse.Web.Services
+@inject NuGetService NuGetService
+
+<PageTitle>@PackageId — NuGetPulse</PageTitle>
+
+@if (_loading)
+{
+    <div class="loading-screen">
+        <div class="spinner-large"></div>
+        <p>Loading <strong>@PackageId</strong>…</p>
+    </div>
+}
+else if (_error is not null)
+{
+    <div class="error-screen">
+        <p class="error-icon">😕</p>
+        <h2>Package not found</h2>
+        <p>@_error</p>
+        <a href="/" class="btn-home">← Back to search</a>
+    </div>
+}
+else if (_stats is not null)
+{
+    <div class="dashboard">
+        <!-- Header -->
+        <div class="dash-header">
+            <div class="dash-header-left">
+                @if (!string.IsNullOrEmpty(_stats.IconUrl))
+                {
+                    <img src="@_stats.IconUrl" class="dash-icon" alt="@_stats.Id" onerror="this.style.display='none'" />
+                }
+                else
+                {
+                    <div class="dash-icon-placeholder">📦</div>
+                }
+                <div>
+                    <h1 class="dash-title">@_stats.Id</h1>
+                    <div class="dash-meta">
+                        <span class="badge bg-secondary">v@_stats.Version</span>
+                        @if (_stats.IsVerified)
+                        {
+                            <span class="badge bg-info text-dark">✓ Verified</span>
+                        }
+                        <span class="@_stats.HealthBadgeClass">@_stats.HealthLabel</span>
+                        @if (!string.IsNullOrEmpty(_stats.LicenseExpression))
+                        {
+                            <span class="badge bg-light text-dark border">@_stats.LicenseExpression</span>
+                        }
+                    </div>
+                </div>
+            </div>
+            <div class="dash-header-right">
+                <div class="stat-pill">
+                    <span class="stat-label">Total Downloads</span>
+                    <span class="stat-value">@_stats.FormattedDownloads</span>
+                </div>
+                <div class="stat-pill">
+                    <span class="stat-label">Versions</span>
+                    <span class="stat-value">@_stats.Versions.Count</span>
+                </div>
+                @if (_stats.Published.HasValue)
+                {
+                    <div class="stat-pill">
+                        <span class="stat-label">Last Published</span>
+                        <span class="stat-value">@_stats.Published.Value.ToString("MMM d, yyyy")</span>
+                    </div>
+                }
+            </div>
+        </div>
+
+        @if (!string.IsNullOrEmpty(_stats.Description))
+        {
+            <p class="dash-description">@_stats.Description</p>
+        }
+
+        @if (!string.IsNullOrEmpty(_stats.Authors))
+        {
+            <p class="dash-authors">by <strong>@_stats.Authors</strong></p>
+        }
+
+        <div class="dash-links">
+            <a href="https://www.nuget.org/packages/@_stats.Id" target="_blank" class="dash-link">nuget.org →</a>
+            @if (!string.IsNullOrEmpty(_stats.ProjectUrl))
+            {
+                <a href="@_stats.ProjectUrl" target="_blank" class="dash-link">Project →</a>
+            }
+        </div>
+
+        <!-- Health Score -->
+        <div class="card-panel">
+            <h2 class="panel-title">Health Score</h2>
+            <div class="health-row">
+                <span class="health-score-big">@_stats.HealthScore<span class="health-score-unit">/100</span></span>
+                <div class="health-bar-wrap">
+                    <div class="health-bar">
+                        <div class="health-bar-fill @_stats.HealthBarClass" style="width: @_stats.HealthScore%"></div>
+                    </div>
+                    <span class="health-label-text">@_stats.HealthLabel</span>
+                </div>
+            </div>
+            <div class="health-criteria">
+                <div class="criterion">
+                    <span>📥 Downloads</span>
+                    <span class="criterion-value">@_stats.FormattedDownloads</span>
+                </div>
+                <div class="criterion">
+                    <span>🔢 Versions</span>
+                    <span class="criterion-value">@_stats.Versions.Count</span>
+                </div>
+                <div class="criterion">
+                    <span>📅 Last Release</span>
+                    <span class="criterion-value">@(_stats.Published?.ToString("MMM yyyy") ?? "—")</span>
+                </div>
+                <div class="criterion">
+                    <span>🔗 Project Link</span>
+                    <span class="criterion-value">@(string.IsNullOrEmpty(_stats.ProjectUrl) ? "❌" : "✅")</span>
+                </div>
+                <div class="criterion">
+                    <span>⚖️ License</span>
+                    <span class="criterion-value">@(string.IsNullOrEmpty(_stats.LicenseExpression) ? "❌" : _stats.LicenseExpression)</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Version download chart -->
+        @if (_stats.Versions.Count > 0)
+        {
+            <div class="card-panel">
+                <h2 class="panel-title">Version Adoption (top 10)</h2>
+                <div class="version-chart">
+                    @foreach (var v in _stats.Versions.OrderByDescending(v => v.Downloads).Take(10))
+                    {
+                        <div class="version-row">
+                            <span class="version-label">@v.Version</span>
+                            <div class="version-bar-track">
+                                <div class="version-bar-fill" style="width: @v.BarWidthPercent%"></div>
+                            </div>
+                            <span class="version-dl">@v.FormattedDownloads</span>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+
+        <!-- Target frameworks -->
+        @if (_stats.TargetFrameworks.Count > 0)
+        {
+            <div class="card-panel">
+                <h2 class="panel-title">Target Frameworks</h2>
+                <div class="framework-chips">
+                    @foreach (var tfm in _stats.TargetFrameworks)
+                    {
+                        <span class="tfm-chip @GetTfmClass(tfm)">@tfm</span>
+                    }
+                </div>
+            </div>
+        }
+
+        <!-- Tags -->
+        @if (_stats.Tags.Count > 0)
+        {
+            <div class="card-panel">
+                <h2 class="panel-title">Tags</h2>
+                <div class="tags-wrap">
+                    @foreach (var tag in _stats.Tags.Take(20))
+                    {
+                        <span class="tag-chip">@tag</span>
+                    }
+                </div>
+            </div>
+        }
+
+        <div class="back-link-wrap">
+            <a href="/" class="btn-home">← Back to search</a>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public string PackageId { get; set; } = string.Empty;
+
+    private PackageStats? _stats;
+    private bool _loading = true;
+    private string? _error;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _loading = true;
+        _error = null;
+        _stats = null;
+
+        try
+        {
+            _stats = await NuGetService.GetPackageStatsAsync(PackageId);
+            if (_stats is null)
+                _error = $"Could not find package '{PackageId}' on NuGet.org.";
+        }
+        catch (Exception ex)
+        {
+            _error = $"Failed to load package data: {ex.Message}";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private static string GetTfmClass(string tfm) => tfm switch
+    {
+        var t when t.StartsWith("net10")      => "tfm-net10",
+        var t when t.StartsWith("net9")       => "tfm-net9",
+        var t when t.StartsWith("net8")       => "tfm-net8",
+        var t when t.StartsWith("net7")       => "tfm-net7",
+        var t when t.StartsWith("netstandard") => "tfm-std",
+        var t when t.StartsWith("netcoreapp")  => "tfm-core",
+        _ => "tfm-legacy"
+    };
+}
