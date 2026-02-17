@@ -50,3 +50,6 @@ Thumbs.db
 
 # Docker
 docker-compose.override.yml
+POC.md
+poc-log.json
+memory/
