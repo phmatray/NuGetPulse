@@ -8,9 +8,11 @@
 @using NuGetPulse.Graph.Models
 @using NuGetPulse.Persistence
 @inject IPackageScanner PackageScanner
+@inject IVulnerabilityScanner VulnerabilityScanner
 @inject IPackageExportService ExportService
 @inject IDependencyGraphBuilder GraphBuilder
 @inject IScanHistoryRepository ScanHistory
+@inject IJSRuntime JS
 
 <PageTitle>Scan — NuGetPulse</PageTitle>
 
@@ -20,7 +22,7 @@
             <div class="dash-icon-placeholder">🔍</div>
             <div>
                 <h1 class="dash-title">Scan Projects</h1>
-                <p class="dash-authors">Discover NuGet packages in your solution</p>
+                <p class="dash-authors">Discover NuGet packages, conflicts, and vulnerabilities in your solution</p>
             </div>
         </div>
     </div>
@@ -51,7 +53,7 @@
                         disabled="@(_scanning || string.IsNullOrWhiteSpace(_scanPath))">
                     @if (_scanning)
                     {
-                        <span>⏳ Scanning…</span>
+                        <span>⏳ @_scanPhase…</span>
                     }
                     else
                     {
@@ -69,9 +71,10 @@
     <!-- Scan results -->
     @if (_packages is not null && _packages.Count > 0)
     {
+        <!-- Summary stats row -->
         <div class="card-panel">
             <div class="panel-title-row">
-                <h2 class="panel-title">Results — @_packages.Count packages</h2>
+                <h2 class="panel-title">📊 Scan Summary</h2>
                 <div class="export-actions">
                     <button class="btn btn-sm btn-outline-success" @onclick="() => DownloadAsync(ExportFormat.Csv)">
                         📊 Export CSV
@@ -82,16 +85,62 @@
                 </div>
             </div>
 
-            <!-- Conflict summary -->
-            @if (_graph?.ConflictCount > 0)
+            <div class="summary-grid">
+                <div class="summary-tile">
+                    <span class="summary-value">@_packages.Count</span>
+                    <span class="summary-label">Packages</span>
+                </div>
+                <div class="summary-tile @(_graph?.ConflictCount > 0 ? "tile-warning" : "")">
+                    <span class="summary-value">@(_graph?.ConflictCount ?? 0)</span>
+                    <span class="summary-label">Conflicts</span>
+                </div>
+                <div class="summary-tile @(_totalVulnerabilities > 0 ? "tile-danger" : "tile-ok")">
+                    @if (_vulnScanLoading)
+                    {
+                        <span class="summary-value"><span class="spinner-sm"></span></span>
+                    }
+                    else
+                    {
+                        <span class="summary-value">@_totalVulnerabilities</span>
+                    }
+                    <span class="summary-label">Vulnerabilities</span>
+                </div>
+                <div class="summary-tile">
+                    <span class="summary-value @GetHealthScoreClass(_scanHealthScore)">@(_scanHealthScore > 0 ? _scanHealthScore : "—")</span>
+                    <span class="summary-label">Health Score</span>
+                </div>
+            </div>
+
+            @if (_vulnScanLoading)
             {
-                <div class="alert alert-warning">
-                    ⚠️ <strong>@_graph.ConflictCount version conflict(s) detected.</strong>
-                    Packages with multiple versions across project files are highlighted below.
+                <div class="alert alert-info mt-3 d-flex align-items-center gap-2">
+                    <span class="spinner-sm"></span>
+                    <span>Running OSV vulnerability scan for @_packages.Select(p => $"{p.PackageName}@{p.Version}").Distinct().Count() unique packages…</span>
                 </div>
             }
+        </div>
 
-            <!-- Package table -->
+        <!-- Conflict alert -->
+        @if (_graph?.ConflictCount > 0)
+        {
+            <div class="alert alert-warning">
+                ⚠️ <strong>@_graph.ConflictCount version conflict(s) detected.</strong>
+                Packages with multiple versions across project files are highlighted below.
+            </div>
+        }
+
+        <!-- Vulnerability alert -->
+        @if (_totalVulnerabilities > 0 && !_vulnScanLoading)
+        {
+            <div class="alert alert-danger">
+                🔴 <strong>@_totalVulnerabilities vulnerability(-ies) found</strong> across @_vulnerabilities.Count(kv => kv.Value.HasVulnerabilities) package(s).
+                Review the security section below.
+            </div>
+        }
+
+        <!-- Package table -->
+        <div class="card-panel">
+            <h2 class="panel-title">Packages (@_packages.Count)</h2>
             <div class="package-table-wrap">
                 <table class="table table-sm">
                     <thead>
@@ -101,13 +150,17 @@
                             <th>Project</th>
                             <th>Type</th>
                             <th>CPM</th>
+                            <th>Security</th>
                         </tr>
                     </thead>
                     <tbody>
                         @foreach (var pkg in _packages.OrderBy(p => p.PackageName))
                         {
                             var hasConflict = _graph?.Conflicts.ContainsKey(pkg.PackageName) == true;
-                            <tr class="@(hasConflict ? "table-warning" : "")">
+                            var vulnKey = $"{pkg.PackageName}@@{pkg.Version}";
+                            _vulnerabilities.TryGetValue(vulnKey, out var vulnReport);
+                            var rowClass = hasConflict ? "table-warning" : (vulnReport?.HasVulnerabilities == true ? "table-danger" : "");
+                            <tr class="@rowClass">
                                 <td>
                                     <a href="/package/@pkg.PackageName">@pkg.PackageName</a>
                                     @if (hasConflict)
@@ -119,6 +172,27 @@
                                 <td class="text-muted small">@Path.GetFileName(pkg.ProjectFile)</td>
                                 <td class="text-muted small">@pkg.Type</td>
                                 <td>@(pkg.IsCentrallyManaged ? "✅" : "")</td>
+                                <td>
+                                    @if (_vulnScanLoading && vulnReport is null)
+                                    {
+                                        <span class="text-muted small">…</span>
+                                    }
+                                    else if (vulnReport is null)
+                                    {
+                                        <span class="text-muted small">—</span>
+                                    }
+                                    else if (!vulnReport.HasVulnerabilities)
+                                    {
+                                        <span class="badge bg-success">✓ Safe</span>
+                                    }
+                                    else
+                                    {
+                                        @foreach (var severityGroup in vulnReport.Vulnerabilities.GroupBy(v => v.Severity).OrderByDescending(g => (int)g.Key))
+                                        {
+                                            <span class="badge @GetSeverityBadge(severityGroup.Key) me-1">@severityGroup.Key @severityGroup.Count()</span>
+                                        }
+                                    }
+                                </td>
                             </tr>
                         }
                     </tbody>
@@ -145,6 +219,50 @@
                 }
             </div>
         }
+
+        <!-- Vulnerability details -->
+        @if (_totalVulnerabilities > 0 && !_vulnScanLoading)
+        {
+            <div class="card-panel">
+                <h2 class="panel-title text-danger">🔴 Security Vulnerabilities (@_totalVulnerabilities)</h2>
+                @foreach (var (key, report) in _vulnerabilities.Where(kv => kv.Value.HasVulnerabilities))
+                {
+                    <div class="vuln-package-block">
+                        <h3 class="vuln-package-name">
+                            <a href="/package/@report.PackageId">@report.PackageId</a>
+                            <code class="ms-2">@report.Version</code>
+                        </h3>
+                        @foreach (var vuln in report.Vulnerabilities)
+                        {
+                            <div class="vuln-item">
+                                <div class="vuln-header">
+                                    <span class="badge @GetSeverityBadge(vuln.Severity)">@vuln.Severity</span>
+                                    <strong class="ms-2">@vuln.Id</strong>
+                                    @if (!string.IsNullOrEmpty(vuln.Summary))
+                                    {
+                                        <span class="ms-2 text-muted">@vuln.Summary</span>
+                                    }
+                                </div>
+                                @if (!string.IsNullOrEmpty(vuln.Details))
+                                {
+                                    <p class="vuln-details text-muted small">@vuln.Details[..Math.Min(vuln.Details.Length, 200)]@(vuln.Details.Length > 200 ? "…" : "")</p>
+                                }
+                                <div class="vuln-meta">
+                                    @if (vuln.Aliases.Count > 0)
+                                    {
+                                        <span class="badge bg-secondary me-1">@string.Join(", ", vuln.Aliases.Take(3))</span>
+                                    }
+                                    @if (!string.IsNullOrEmpty(vuln.ReferenceUrl))
+                                    {
+                                        <a href="@vuln.ReferenceUrl" target="_blank" class="small">Details →</a>
+                                    }
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        }
     }
     else if (_packages is not null && _packages.Count == 0)
     {
@@ -157,13 +275,17 @@
     @if (_recentScans.Count > 0)
     {
         <div class="card-panel">
-            <h2 class="panel-title">Recent Scans</h2>
+            <div class="panel-title-row">
+                <h2 class="panel-title">Recent Scans</h2>
+                <a href="/history" class="btn btn-sm btn-outline-secondary">View all →</a>
+            </div>
             <table class="table table-sm">
                 <thead>
                     <tr>
                         <th>Name</th>
                         <th>Path</th>
                         <th>Packages</th>
+                        <th>Vulns</th>
                         <th>Scanned</th>
                         <th>Duration</th>
                     </tr>
@@ -175,6 +297,9 @@
                             <td>@session.Name</td>
                             <td class="text-muted small">@session.Path</td>
                             <td>@session.PackageCount</td>
+                            <td class="@(session.VulnerabilityCount > 0 ? "text-danger fw-bold" : "text-success")">
+                                @(session.VulnerabilityCount > 0 ? $"⚠️ {session.VulnerabilityCount}" : "✓")
+                            </td>
                             <td class="text-muted small">@session.ScannedAt.ToString("MMM d, HH:mm")</td>
                             <td class="text-muted small">@session.DurationMs ms</td>
                         </tr>
@@ -193,22 +318,35 @@
     private string _scanName = string.Empty;
     private string _scanPath = string.Empty;
     private bool _scanning = false;
+    private string _scanPhase = "Scanning";
     private string? _scanError = null;
     private IReadOnlyList<PackageReference>? _packages = null;
     private DependencyGraph? _graph = null;
     private List<NuGetPulse.Persistence.Entities.ScanSession> _recentScans = [];
 
+    // OSV state (updated async after scan)
+    private Dictionary<string, VulnerabilityReport> _vulnerabilities = new();
+    private bool _vulnScanLoading = false;
+    private int _totalVulnerabilities = 0;
+    private int _scanHealthScore = 0;
+
     protected override async Task OnInitializedAsync()
     {
-        _recentScans = (await ScanHistory.GetRecentSessionsAsync(10)).ToList();
+        _recentScans = (await ScanHistory.GetRecentSessionsAsync(5)).ToList();
     }
 
     private async Task RunScanAsync()
     {
         _scanning = true;
+        _scanPhase = "Scanning";
         _scanError = null;
         _packages = null;
         _graph = null;
+        _vulnerabilities = new();
+        _vulnScanLoading = false;
+        _totalVulnerabilities = 0;
+        _scanHealthScore = 0;
+        StateHasChanged();
 
         var sw = System.Diagnostics.Stopwatch.StartNew();
         try
@@ -219,34 +357,91 @@
             // Build graph for conflict detection
             _graph = GraphBuilder.Build(_packages);
 
-            // Persist scan to history
-            var name = string.IsNullOrWhiteSpace(_scanName) ? Path.GetFileName(_scanPath.TrimEnd('/','\\')) : _scanName;
-            await ScanHistory.SaveScanAsync(name, _scanPath.Trim(), _packages, sw.ElapsedMilliseconds);
+            // Persist scan (vuln count = 0 initially, updated after OSV scan)
+            var name = string.IsNullOrWhiteSpace(_scanName) ? Path.GetFileName(_scanPath.TrimEnd('/', '\\')) : _scanName;
+            await ScanHistory.SaveScanAsync(name, _scanPath.Trim(), _packages, sw.ElapsedMilliseconds, 0);
 
             // Refresh history
-            _recentScans = (await ScanHistory.GetRecentSessionsAsync(10)).ToList();
+            _recentScans = (await ScanHistory.GetRecentSessionsAsync(5)).ToList();
         }
         catch (Exception ex)
         {
             _scanError = $"Scan failed: {ex.Message}";
+            _scanning = false;
+            return;
         }
         finally
         {
             _scanning = false;
+        }
+
+        // Kick off OSV scan (non-blocking, updates state incrementally)
+        if (_packages is not null && _packages.Count > 0)
+            _ = RunVulnerabilityScanAsync();
+    }
+
+    private async Task RunVulnerabilityScanAsync()
+    {
+        if (_packages is null) return;
+
+        _vulnScanLoading = true;
+        await InvokeAsync(StateHasChanged);
+
+        try
+        {
+            // Distinct (packageId, version) pairs to avoid duplicate OSV queries
+            var distinct = _packages
+                .GroupBy(p => $"{p.PackageName}@@{p.Version}", StringComparer.OrdinalIgnoreCase)
+                .Select(g => (g.First().PackageName, g.First().Version))
+                .ToList();
+
+            var reports = await VulnerabilityScanner.ScanBatchAsync(distinct);
+
+            foreach (var report in reports)
+            {
+                var key = $"{report.PackageId}@@{report.Version}";
+                _vulnerabilities[key] = report;
+            }
+
+            _totalVulnerabilities = _vulnerabilities.Values.Sum(r => r.Count);
+
+            // Compute scan-level health score
+            // Start at 100, deduct for conflicts and vulnerabilities
+            var conflictPenalty = (_graph?.ConflictCount ?? 0) * 5;
+            var vulnPenalty = _totalVulnerabilities switch
+            {
+                0 => 0,
+                1 => 10,
+                <= 3 => 20,
+                <= 5 => 35,
+                _ => 50
+            };
+            _scanHealthScore = Math.Max(0, 100 - conflictPenalty - vulnPenalty);
+        }
+        catch
+        {
+            // OSV scan is best-effort; don't fail the page
+        }
+        finally
+        {
+            _vulnScanLoading = false;
+            await InvokeAsync(StateHasChanged);
         }
     }
 
     private async Task DownloadAsync(ExportFormat format)
     {
         if (_packages is null) return;
-        // For Blazor Server: we use JavaScript interop to trigger download
-        // The export service produces the bytes; they'd need to be delivered via JS
-        // For now we log the export size (full JS interop would need JSRuntime injected)
         var name = string.IsNullOrWhiteSpace(_scanName) ? "packages" : _scanName;
+
+        ExportResult result;
         if (format == ExportFormat.Csv)
-            await ExportService.ExportToCsvAsync(_packages, name);
+            result = await ExportService.ExportToCsvAsync(_packages, name);
         else
-            await ExportService.ExportToJsonAsync(_packages);
+            result = await ExportService.ExportToJsonAsync(_packages);
+
+        // Trigger browser download via JS interop
+        await JS.InvokeVoidAsync("downloadFile", result.FileName, result.MimeType, result.BinaryData);
     }
 
     private static string GetConflictBadge(int severity) => severity switch
@@ -254,5 +449,22 @@
         3 => "bg-danger",
         2 => "bg-warning text-dark",
         _ => "bg-info text-dark"
+    };
+
+    private static string GetSeverityBadge(OsvSeverity severity) => severity switch
+    {
+        OsvSeverity.Critical => "bg-danger",
+        OsvSeverity.High     => "bg-danger",
+        OsvSeverity.Medium   => "bg-warning text-dark",
+        OsvSeverity.Low      => "bg-info text-dark",
+        _ => "bg-secondary"
+    };
+
+    private static string GetHealthScoreClass(int score) => score switch
+    {
+        >= 80 => "text-success",
+        >= 60 => "text-warning",
+        > 0   => "text-danger",
+        _     => ""
     };
 }
