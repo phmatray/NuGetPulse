@@ -9,6 +9,9 @@ COPY src/NuGetPulse.Core/NuGetPulse.Core.csproj src/NuGetPulse.Core/
 COPY src/NuGetPulse.Scanner/NuGetPulse.Scanner.csproj src/NuGetPulse.Scanner/
 COPY src/NuGetPulse.Security/NuGetPulse.Security.csproj src/NuGetPulse.Security/
 COPY src/NuGetPulse.Server/NuGetPulse.Server.csproj src/NuGetPulse.Server/
+COPY src/NuGetPulse.Persistence/NuGetPulse.Persistence.csproj src/NuGetPulse.Persistence/
+COPY src/NuGetPulse.Graph/NuGetPulse.Graph.csproj src/NuGetPulse.Graph/
+COPY src/NuGetPulse.Export/NuGetPulse.Export.csproj src/NuGetPulse.Export/
 COPY src/NuGetPulse.Web/NuGetPulse.Web.csproj src/NuGetPulse.Web/
 RUN dotnet restore src/NuGetPulse.Web/NuGetPulse.Web.csproj
 
