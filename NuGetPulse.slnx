@@ -1,5 +1,9 @@
 <Solution>
   <Folder Name="/src/">
     <Project Path="src/NuGetPulse.Web/NuGetPulse.Web.csproj" />
+    <Project Path="src/NuGetPulse.Core/NuGetPulse.Core.csproj" />
+    <Project Path="src/NuGetPulse.Scanner/NuGetPulse.Scanner.csproj" />
+    <Project Path="src/NuGetPulse.Security/NuGetPulse.Security.csproj" />
+    <Project Path="src/NuGetPulse.Server/NuGetPulse.Server.csproj" />
   </Folder>
 </Solution>
