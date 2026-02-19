@@ -39,6 +39,9 @@ var dbPath = builder.Configuration.GetValue<string>("Database:Path")
              ?? Path.Combine(builder.Environment.ContentRootPath, "nugetpulse.db");
 builder.Services.AddNuGetPulsePersistence(dbPath);
 
+// ── Health Checks ─────────────────────────────────────────────────────────────
+builder.Services.AddHealthChecks();
+
 var app = builder.Build();
 
 // Ensure database exists (creates tables if not present)
@@ -50,6 +53,7 @@ if (!app.Environment.IsDevelopment())
     app.UseHsts();
 }
 
+app.MapHealthChecks("/health");
 app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
 app.UseHttpsRedirection();
 app.UseAntiforgery();
