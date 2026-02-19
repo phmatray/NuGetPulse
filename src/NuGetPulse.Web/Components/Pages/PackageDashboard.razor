@@ -1,8 +1,11 @@
 @page "/package/{PackageId}"
 @rendermode InteractiveServer
+@using NuGetPulse.Core.Abstractions
+@using NuGetPulse.Core.Models
 @using NuGetPulse.Web.Models
 @using NuGetPulse.Web.Services
 @inject NuGetService NuGetService
+@inject IVulnerabilityScanner VulnerabilityScanner
 
 <PageTitle>@PackageId — NuGetPulse</PageTitle>
 
@@ -44,7 +47,7 @@ else if (_stats is not null)
                         {
                             <span class="badge bg-info text-dark">✓ Verified</span>
                         }
-                        <span class="@_stats.HealthBadgeClass">@_stats.HealthLabel</span>
+                        <span class="@_healthBadgeClass">@_healthLabel</span>
                         @if (!string.IsNullOrEmpty(_stats.LicenseExpression))
                         {
                             <span class="badge bg-light text-dark border">@_stats.LicenseExpression</span>
@@ -89,16 +92,16 @@ else if (_stats is not null)
             }
         </div>
 
-        <!-- Health Score -->
+        <!-- Health Score (backed by real OSV vulnerability data) -->
         <div class="card-panel">
             <h2 class="panel-title">Health Score</h2>
             <div class="health-row">
-                <span class="health-score-big">@_stats.HealthScore<span class="health-score-unit">/100</span></span>
+                <span class="health-score-big">@_computedHealth.Score<span class="health-score-unit">/100</span></span>
                 <div class="health-bar-wrap">
                     <div class="health-bar">
-                        <div class="health-bar-fill @_stats.HealthBarClass" style="width: @_stats.HealthScore%"></div>
+                        <div class="health-bar-fill @_healthBarClass" style="width: @_computedHealth.Score%"></div>
                     </div>
-                    <span class="health-label-text">@_stats.HealthLabel</span>
+                    <span class="health-label-text">@_healthLabel</span>
                 </div>
             </div>
             <div class="health-criteria">
@@ -122,8 +125,54 @@ else if (_stats is not null)
                     <span>⚖️ License</span>
                     <span class="criterion-value">@(string.IsNullOrEmpty(_stats.LicenseExpression) ? "❌" : _stats.LicenseExpression)</span>
                 </div>
+                <!-- Real vulnerability count from OSV API -->
+                <div class="criterion">
+                    <span>🛡️ Vulnerabilities</span>
+                    <span class="criterion-value @(_vulnReport?.HasVulnerabilities == true ? "text-danger fw-bold" : "text-success")">
+                        @if (_vulnScanLoading)
+                        {
+                            <span class="spinner-sm">⏳</span>
+                        }
+                        else if (_vulnReport is null)
+                        {
+                            <span>—</span>
+                        }
+                        else if (_vulnReport.HasVulnerabilities)
+                        {
+                            <span>⚠️ @_vulnReport.Count found</span>
+                        }
+                        else
+                        {
+                            <span>✅ None</span>
+                        }
+                    </span>
+                </div>
             </div>
         </div>
+
+        <!-- Vulnerability details (if any found) -->
+        @if (_vulnReport?.HasVulnerabilities == true)
+        {
+            <div class="card-panel border-danger">
+                <h2 class="panel-title text-danger">⚠️ Security Vulnerabilities (@_vulnReport.Count)</h2>
+                <div class="vuln-list">
+                    @foreach (var vuln in _vulnReport.Vulnerabilities)
+                    {
+                        <div class="vuln-item">
+                            <div class="vuln-header">
+                                <span class="vuln-id">@vuln.Id</span>
+                                <span class="badge @GetSeverityBadge(vuln.Severity)">@vuln.Severity</span>
+                            </div>
+                            <p class="vuln-summary">@vuln.Summary</p>
+                            @if (!string.IsNullOrEmpty(vuln.ReferenceUrl))
+                            {
+                                <a href="@vuln.ReferenceUrl" target="_blank" class="vuln-link">More info →</a>
+                            }
+                        </div>
+                    }
+                </div>
+            </div>
+        }
 
         <!-- Version download chart -->
         @if (_stats.Versions.Count > 0)
@@ -186,17 +235,59 @@ else if (_stats is not null)
     private bool _loading = true;
     private string? _error;
 
+    // Vulnerability state (loaded asynchronously after stats)
+    private VulnerabilityReport? _vulnReport;
+    private bool _vulnScanLoading = false;
+
+    // Computed health from HealthScore model (using real vuln data)
+    private HealthScore _computedHealth = new();
+
+    private string _healthLabel => _computedHealth.Status switch
+    {
+        HealthStatus.Healthy  => "Excellent",
+        HealthStatus.Warning  => "Good",
+        HealthStatus.Critical => "Needs Attention",
+        _ => "Unknown"
+    };
+
+    private string _healthBadgeClass => _computedHealth.Status switch
+    {
+        HealthStatus.Healthy  => "badge bg-success",
+        HealthStatus.Warning  => "badge bg-primary",
+        HealthStatus.Critical => "badge bg-danger",
+        _ => "badge bg-secondary"
+    };
+
+    private string _healthBarClass => _computedHealth.Status switch
+    {
+        HealthStatus.Healthy  => "bg-success",
+        HealthStatus.Warning  => "bg-primary",
+        HealthStatus.Critical => "bg-danger",
+        _ => "bg-secondary"
+    };
+
     protected override async Task OnParametersSetAsync()
     {
         _loading = true;
         _error = null;
         _stats = null;
+        _vulnReport = null;
 
         try
         {
             _stats = await NuGetService.GetPackageStatsAsync(PackageId);
             if (_stats is null)
+            {
                 _error = $"Could not find package '{PackageId}' on NuGet.org.";
+                return;
+            }
+
+            // Compute initial health with 0 vulns (updated when OSV scan completes)
+            _computedHealth = HealthScore.Compute(
+                _stats.TotalDownloads,
+                _stats.Published,
+                vulnerabilityCount: 0,
+                isDeprecated: false);
         }
         catch (Exception ex)
         {
@@ -206,16 +297,57 @@ else if (_stats is not null)
         {
             _loading = false;
         }
+
+        // Kick off OSV vulnerability scan in the background (non-blocking)
+        if (_stats is not null)
+            _ = ScanVulnerabilitiesAsync();
+    }
+
+    private async Task ScanVulnerabilitiesAsync()
+    {
+        _vulnScanLoading = true;
+        await InvokeAsync(StateHasChanged);
+
+        try
+        {
+            _vulnReport = await VulnerabilityScanner.ScanAsync(PackageId, _stats!.Version);
+
+            // Recompute health with real vulnerability count
+            _computedHealth = HealthScore.Compute(
+                _stats.TotalDownloads,
+                _stats.Published,
+                vulnerabilityCount: _vulnReport.Count,
+                isDeprecated: false);
+        }
+        catch
+        {
+            // Vulnerability scan is best-effort; don't fail the page
+            _vulnReport = null;
+        }
+        finally
+        {
+            _vulnScanLoading = false;
+            await InvokeAsync(StateHasChanged);
+        }
     }
 
     private static string GetTfmClass(string tfm) => tfm switch
     {
-        var t when t.StartsWith("net10")      => "tfm-net10",
-        var t when t.StartsWith("net9")       => "tfm-net9",
-        var t when t.StartsWith("net8")       => "tfm-net8",
-        var t when t.StartsWith("net7")       => "tfm-net7",
+        var t when t.StartsWith("net10")       => "tfm-net10",
+        var t when t.StartsWith("net9")        => "tfm-net9",
+        var t when t.StartsWith("net8")        => "tfm-net8",
+        var t when t.StartsWith("net7")        => "tfm-net7",
         var t when t.StartsWith("netstandard") => "tfm-std",
         var t when t.StartsWith("netcoreapp")  => "tfm-core",
         _ => "tfm-legacy"
+    };
+
+    private static string GetSeverityBadge(OsvSeverity severity) => severity switch
+    {
+        OsvSeverity.Critical => "bg-danger",
+        OsvSeverity.High     => "bg-danger",
+        OsvSeverity.Medium   => "bg-warning text-dark",
+        OsvSeverity.Low      => "bg-info text-dark",
+        _ => "bg-secondary"
     };
 }

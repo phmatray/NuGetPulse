@@ -7,18 +7,28 @@
     <!-- Web / Blazor -->
     <PackageVersion Include="Microsoft.AspNetCore.Components.Web" Version="10.0.0" />
 
-    <!-- Scanner (no extra packages needed — uses BCL XML) -->
+    <!-- Shared diagnostics/logging extensions — bumped to 10.0.3 to align with EF Core 10.0.3 -->
+    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.3" />
+    <PackageVersion Include="Microsoft.Extensions.Logging" Version="10.0.3" />
+    <PackageVersion Include="Microsoft.Extensions.Options" Version="10.0.3" />
+    <PackageVersion Include="Microsoft.Extensions.Http" Version="10.0.3" />
+    <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.3" />
+    <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="10.0.3" />
+    <PackageVersion Include="Microsoft.Extensions.Configuration.Abstractions" Version="10.0.3" />
 
-    <!-- Security (OSV) -->
-    <!-- Uses HttpClient from Microsoft.Extensions.Http (included in Web SDK) -->
+    <!-- Persistence: EF Core + SQLite -->
+    <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.0.3" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.3" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.3" />
 
-    <!-- Server (self-hosted NuGet store) -->
-    <!-- Uses System.IO.Compression (BCL) and System.Xml.Linq (BCL) -->
+    <!-- Export: CSV -->
+    <PackageVersion Include="CsvHelper" Version="33.1.0" />
 
-    <!-- Shared diagnostics/logging extensions (all projects) -->
-    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.0" />
-    <PackageVersion Include="Microsoft.Extensions.Options" Version="10.0.0" />
-    <PackageVersion Include="Microsoft.Extensions.Http" Version="10.0.0" />
-    <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.0" />
+    <!-- Tests -->
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageVersion Include="xunit" Version="2.9.3" />
+    <PackageVersion Include="xunit.runner.visualstudio" Version="2.8.2" />
+    <PackageVersion Include="FluentAssertions" Version="7.2.1" />
+    <PackageVersion Include="NSubstitute" Version="5.3.0" />
   </ItemGroup>
 </Project>

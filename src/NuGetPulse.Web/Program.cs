@@ -1,3 +1,8 @@
+using NuGetPulse.Export;
+using NuGetPulse.Graph;
+using NuGetPulse.Persistence;
+using NuGetPulse.Scanner;
+using NuGetPulse.Security;
 using NuGetPulse.Web.Components;
 using NuGetPulse.Web.Services;
 
@@ -6,6 +11,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
+// ── NuGet API client ──────────────────────────────────────────────────────────
 // HttpClient for NuGet API — 30s timeout, auto-decompress gzip (registration5-gz endpoints)
 builder.Services.AddHttpClient<NuGetService>(client =>
 {
@@ -16,7 +22,27 @@ builder.Services.AddHttpClient<NuGetService>(client =>
     AutomaticDecompression = System.Net.DecompressionMethods.GZip | System.Net.DecompressionMethods.Deflate
 });
 
+// ── Package Scanner ───────────────────────────────────────────────────────────
+builder.Services.AddNuGetPulseScanner();
+
+// ── Vulnerability Scanner (OSV API) ──────────────────────────────────────────
+builder.Services.AddNuGetPulseSecurity();
+
+// ── Dependency Graph Builder ──────────────────────────────────────────────────
+builder.Services.AddNuGetPulseGraph();
+
+// ── Export Service (CSV / JSON) ───────────────────────────────────────────────
+builder.Services.AddNuGetPulseExport();
+
+// ── Persistence (EF Core SQLite — scan history) ───────────────────────────────
+var dbPath = builder.Configuration.GetValue<string>("Database:Path")
+             ?? Path.Combine(builder.Environment.ContentRootPath, "nugetpulse.db");
+builder.Services.AddNuGetPulsePersistence(dbPath);
+
 var app = builder.Build();
+
+// Ensure database exists (creates tables if not present)
+await app.Services.MigrateNuGetPulseDbAsync();
 
 if (!app.Environment.IsDevelopment())
 {

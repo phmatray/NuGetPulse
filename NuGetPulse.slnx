@@ -5,5 +5,11 @@
     <Project Path="src/NuGetPulse.Scanner/NuGetPulse.Scanner.csproj" />
     <Project Path="src/NuGetPulse.Security/NuGetPulse.Security.csproj" />
     <Project Path="src/NuGetPulse.Server/NuGetPulse.Server.csproj" />
+    <Project Path="src/NuGetPulse.Persistence/NuGetPulse.Persistence.csproj" />
+    <Project Path="src/NuGetPulse.Graph/NuGetPulse.Graph.csproj" />
+    <Project Path="src/NuGetPulse.Export/NuGetPulse.Export.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/NuGetPulse.Tests/NuGetPulse.Tests.csproj" />
   </Folder>
 </Solution>

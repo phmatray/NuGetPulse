@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <RootNamespace>NuGetPulse.Tests</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="FluentAssertions" />
+    <PackageReference Include="Microsoft.Extensions.Logging" />
+    <PackageReference Include="NSubstitute" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\NuGetPulse.Core\NuGetPulse.Core.csproj" />
+    <ProjectReference Include="..\..\src\NuGetPulse.Scanner\NuGetPulse.Scanner.csproj" />
+    <ProjectReference Include="..\..\src\NuGetPulse.Security\NuGetPulse.Security.csproj" />
+    <ProjectReference Include="..\..\src\NuGetPulse.Graph\NuGetPulse.Graph.csproj" />
+    <ProjectReference Include="..\..\src\NuGetPulse.Export\NuGetPulse.Export.csproj" />
+    <ProjectReference Include="..\..\src\NuGetPulse.Persistence\NuGetPulse.Persistence.csproj" />
+  </ItemGroup>
+
+</Project>
