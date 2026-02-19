@@ -1,5 +1,11 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
 
+  <ItemGroup>
+    <ProjectReference Include="..\NuGetPulse.Core\NuGetPulse.Core.csproj" />
+    <ProjectReference Include="..\NuGetPulse.Security\NuGetPulse.Security.csproj" />
+    <ProjectReference Include="..\NuGetPulse.Scanner\NuGetPulse.Scanner.csproj" />
+  </ItemGroup>
+
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>

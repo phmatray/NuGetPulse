@@ -4,53 +4,45 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![.NET](https://img.shields.io/badge/.NET-10.0-purple.svg)](https://dotnet.microsoft.com)
 
-**NuGetPulse** is a real-time Blazor Server SaaS dashboard for monitoring the health of your NuGet packages. Track download trends, deprecation warnings, vulnerability alerts, and compute a composite **Health Score (0–100)** across your entire package portfolio — all in a fast, dark-mode-first UI built on .NET 10.
+**NuGetPulse** is the all-in-one NuGet toolkit for .NET teams.  
+It consolidates four previously separate tools into a single, cohesive product:
+
+| Absorbed repo | What it contributed |
+|---|---|
+| `NuGetPulse` (original) | Blazor dashboard, health scoring |
+| `NugetManager` | Package scanning, dependency graph, Git/GitHub integration |
+| `NugetOSV` | OSV vulnerability scanning (concept → real implementation) |
+| `NugetServer` | Self-hosted NuGet gRPC server |
 
 > 🌐 **Live demo:** [https://nugetpulse.garry-ai.cloud](https://nugetpulse.garry-ai.cloud)
 
 ---
 
-## Screenshot
-
-![NuGetPulse dashboard — dark mode home screen](docs/images/nugetpulse-home.png)
-
----
-
 ## Features
 
-- 🔍 **Real-time NuGet API integration** — live metadata from api.nuget.org
-- 📊 **Health Score (0–100)** — composite metric: downloads + freshness + vulnerability status + deprecation
-- 🌙 **Dark mode** — easy on the eyes during late-night deployments
-- ⚡ **Blazor Server** — no JavaScript SPA headaches; SignalR keeps data live
-- 🐳 **Docker-ready** — Dockerfile + Kubernetes manifests included
-- 🚀 **.NET 10** — taking advantage of the latest performance improvements
+### 🔍 Dashboard (`NuGetPulse.Web`)
+- Real-time NuGet API integration — live metadata from api.nuget.org
+- **Health Score (0–100)** — composite metric: downloads + freshness + vulnerability + deprecation
+- Dark mode, Blazor Server, SignalR-live updates
+- Docker + Kubernetes ready, .NET 10
 
----
+### 🔎 Package Scanner (`NuGetPulse.Scanner`)
+- Parse `.csproj`, `.fsproj`, `packages.config`, `Directory.Packages.props`
+- Recursive directory scanning
+- Central Package Management (CPM) support
+- Ported and modernised from [NugetManager](https://github.com/phmatray/NugetManager)
 
-## Quick Start
+### 🛡️ Security / OSV (`NuGetPulse.Security`)
+- Scan any NuGet package/version against the **OSV** (Open Source Vulnerabilities) database
+- Batch scanning for entire project portfolios
+- Severity mapping (Critical / High / Medium / Low)
+- Real implementation of the [NugetOSV](https://github.com/phmatray/NugetOSV) concept
 
-### Prerequisites
-
-- [.NET 10 SDK](https://dotnet.microsoft.com/download)
-- Git
-
-### Run locally
-
-```bash
-git clone https://github.com/phmatray/NuGetPulse.git
-cd NuGetPulse
-dotnet restore
-dotnet run --project src/NuGetPulse.Web
-```
-
-Then open [https://localhost:5001](https://localhost:5001) in your browser.
-
-### Docker
-
-```bash
-docker build -t nugetpulse .
-docker run -p 8080:8080 nugetpulse
-```
+### 🗄️ Self-hosted Server (`NuGetPulse.Server`)
+- File-system backed NuGet package store
+- Push / List / Download .nupkg packages
+- Clean architecture (ports & adapters)
+- Inspired by [NugetServer](https://github.com/phmatray/NugetServer) gRPC design
 
 ---
 
@@ -59,19 +51,62 @@ docker run -p 8080:8080 nugetpulse
 ```
 NuGetPulse/
 ├── src/
-│   └── NuGetPulse.Web/          # Blazor Server application
-│       ├── Components/
-│       │   ├── Pages/
-│       │   │   └── PackageDashboard.razor   # Main dashboard page
-│       │   └── Layout/
-│       ├── Models/
-│       │   └── PackageStats.cs  # Health score model
-│       └── Services/
-│           └── NuGetService.cs  # NuGet API client
-├── k8s/                         # Kubernetes manifests
+│   ├── NuGetPulse.Web/        # Blazor Server dashboard (net10.0)
+│   ├── NuGetPulse.Core/       # Shared models, interfaces, health scoring
+│   ├── NuGetPulse.Scanner/    # Project-file package scanner
+│   ├── NuGetPulse.Security/   # OSV vulnerability scanner
+│   └── NuGetPulse.Server/     # Self-hosted NuGet package store
+├── k8s/                       # Kubernetes manifests
 ├── Dockerfile
-├── global.json
-└── Directory.Packages.props     # Central Package Management
+├── global.json                # SDK 10.0.103 pinned
+└── Directory.Packages.props   # Central Package Management
+```
+
+---
+
+## Quick Start
+
+### Prerequisites
+- [.NET 10 SDK](https://dotnet.microsoft.com/download)
+- Git
+
+### Run the dashboard locally
+```bash
+git clone https://github.com/phmatray/NuGetPulse.git
+cd NuGetPulse
+dotnet restore
+dotnet run --project src/NuGetPulse.Web
+```
+
+### Use the scanner in your project
+```csharp
+// Register
+services.AddNuGetPulseScanner();
+
+// Inject and use
+var packages = await scanner.ScanDirectoryAsync("/path/to/your/repo");
+```
+
+### Scan for vulnerabilities (OSV)
+```csharp
+// Register
+services.AddNuGetPulseSecurity();
+
+// Inject and use
+var report = await vulnScanner.ScanAsync("Newtonsoft.Json", "12.0.1");
+Console.WriteLine($"Found {report.Count} vulnerabilities");
+```
+
+### Self-hosted NuGet server
+```csharp
+// Register
+services.AddNuGetPulseServer(opts => opts.RootPath = "/srv/nuget-packages");
+
+// Push a package
+await store.PushAsync(nupkgStream);
+
+// List packages
+var list = await store.ListAsync();
 ```
 
 ---
@@ -80,9 +115,9 @@ NuGetPulse/
 
 | Factor | Weight | Description |
 |--------|--------|-------------|
-| Downloads | 30% | Normalised total download count |
+| Downloads | 30% | Log-normalised total download count |
 | Freshness | 30% | Days since last publish (< 30 days = 100) |
-| Vulnerabilities | 25% | 0 vulns = 100, each vuln –25 |
+| Vulnerabilities | 25% | 0 vulns = 100, each vuln −25 |
 | Deprecation | 15% | Not deprecated = 100, deprecated = 0 |
 
 **Score ≥ 80** → 🟢 Healthy  
@@ -91,13 +126,24 @@ NuGetPulse/
 
 ---
 
+## Deprecated Repositories
+
+The following repositories have been absorbed into NuGetPulse and are now archived:
+
+- ~~[phmatray/NugetOSV](https://github.com/phmatray/NugetOSV)~~ → `NuGetPulse.Security`
+- ~~[phmatray/NugetManager](https://github.com/phmatray/NugetManager)~~ → `NuGetPulse.Scanner` + `NuGetPulse.Web`
+- ~~[phmatray/NugetServer](https://github.com/phmatray/NugetServer)~~ → `NuGetPulse.Server`
+
+---
+
 ## Roadmap
 
-- [ ] Multi-package portfolio view (watchlist)
+- [ ] Blazor UI for scanner results (visualise project dependencies)
+- [ ] OSV vulnerability badges in the dashboard
+- [ ] Self-hosted server UI tab in dashboard
 - [ ] Email/Slack alerts on score drops
 - [ ] Historical trend charts
 - [ ] GitHub Actions integration (block PRs on unhealthy deps)
-- [ ] NuGet private feed support (Azure Artifacts, GitHub Packages)
 
 ---
 

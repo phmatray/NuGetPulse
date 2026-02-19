@@ -4,6 +4,21 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- Web / Blazor -->
     <PackageVersion Include="Microsoft.AspNetCore.Components.Web" Version="10.0.0" />
+
+    <!-- Scanner (no extra packages needed — uses BCL XML) -->
+
+    <!-- Security (OSV) -->
+    <!-- Uses HttpClient from Microsoft.Extensions.Http (included in Web SDK) -->
+
+    <!-- Server (self-hosted NuGet store) -->
+    <!-- Uses System.IO.Compression (BCL) and System.Xml.Linq (BCL) -->
+
+    <!-- Shared diagnostics/logging extensions (all projects) -->
+    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.0" />
+    <PackageVersion Include="Microsoft.Extensions.Options" Version="10.0.0" />
+    <PackageVersion Include="Microsoft.Extensions.Http" Version="10.0.0" />
+    <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.0" />
   </ItemGroup>
 </Project>
