@@ -1,0 +1,258 @@
+@page "/scan"
+@rendermode InteractiveServer
+@using NuGetPulse.Core.Abstractions
+@using NuGetPulse.Core.Models
+@using NuGetPulse.Export
+@using NuGetPulse.Export.Models
+@using NuGetPulse.Graph
+@using NuGetPulse.Graph.Models
+@using NuGetPulse.Persistence
+@inject IPackageScanner PackageScanner
+@inject IPackageExportService ExportService
+@inject IDependencyGraphBuilder GraphBuilder
+@inject IScanHistoryRepository ScanHistory
+
+<PageTitle>Scan — NuGetPulse</PageTitle>
+
+<div class="dashboard">
+    <div class="dash-header">
+        <div class="dash-header-left">
+            <div class="dash-icon-placeholder">🔍</div>
+            <div>
+                <h1 class="dash-title">Scan Projects</h1>
+                <p class="dash-authors">Discover NuGet packages in your solution</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scan form -->
+    <div class="card-panel">
+        <h2 class="panel-title">Scan a Directory</h2>
+        <div class="scan-form">
+            <div class="scan-input-row">
+                <label for="scan-name">Name</label>
+                <input id="scan-name"
+                       type="text"
+                       placeholder="My Solution"
+                       @bind="_scanName"
+                       class="form-control" />
+            </div>
+            <div class="scan-input-row">
+                <label for="scan-path">Directory Path</label>
+                <input id="scan-path"
+                       type="text"
+                       placeholder="/path/to/your/solution"
+                       @bind="_scanPath"
+                       class="form-control" />
+            </div>
+            <div class="scan-actions">
+                <button class="btn btn-primary"
+                        @onclick="RunScanAsync"
+                        disabled="@(_scanning || string.IsNullOrWhiteSpace(_scanPath))">
+                    @if (_scanning)
+                    {
+                        <span>⏳ Scanning…</span>
+                    }
+                    else
+                    {
+                        <span>🔍 Start Scan</span>
+                    }
+                </button>
+            </div>
+            @if (_scanError is not null)
+            {
+                <div class="alert alert-danger mt-2">@_scanError</div>
+            }
+        </div>
+    </div>
+
+    <!-- Scan results -->
+    @if (_packages is not null && _packages.Count > 0)
+    {
+        <div class="card-panel">
+            <div class="panel-title-row">
+                <h2 class="panel-title">Results — @_packages.Count packages</h2>
+                <div class="export-actions">
+                    <button class="btn btn-sm btn-outline-success" @onclick="() => DownloadAsync(ExportFormat.Csv)">
+                        📊 Export CSV
+                    </button>
+                    <button class="btn btn-sm btn-outline-info" @onclick="() => DownloadAsync(ExportFormat.Json)">
+                        { } Export JSON
+                    </button>
+                </div>
+            </div>
+
+            <!-- Conflict summary -->
+            @if (_graph?.ConflictCount > 0)
+            {
+                <div class="alert alert-warning">
+                    ⚠️ <strong>@_graph.ConflictCount version conflict(s) detected.</strong>
+                    Packages with multiple versions across project files are highlighted below.
+                </div>
+            }
+
+            <!-- Package table -->
+            <div class="package-table-wrap">
+                <table class="table table-sm">
+                    <thead>
+                        <tr>
+                            <th>Package</th>
+                            <th>Version</th>
+                            <th>Project</th>
+                            <th>Type</th>
+                            <th>CPM</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var pkg in _packages.OrderBy(p => p.PackageName))
+                        {
+                            var hasConflict = _graph?.Conflicts.ContainsKey(pkg.PackageName) == true;
+                            <tr class="@(hasConflict ? "table-warning" : "")">
+                                <td>
+                                    <a href="/package/@pkg.PackageName">@pkg.PackageName</a>
+                                    @if (hasConflict)
+                                    {
+                                        <span class="badge bg-warning text-dark ms-1">conflict</span>
+                                    }
+                                </td>
+                                <td><code>@pkg.Version</code></td>
+                                <td class="text-muted small">@Path.GetFileName(pkg.ProjectFile)</td>
+                                <td class="text-muted small">@pkg.Type</td>
+                                <td>@(pkg.IsCentrallyManaged ? "✅" : "")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Conflict details -->
+        @if (_graph?.ConflictCount > 0)
+        {
+            <div class="card-panel">
+                <h2 class="panel-title">⚠️ Version Conflicts</h2>
+                @foreach (var (name, conflict) in _graph.Conflicts)
+                {
+                    <div class="conflict-item">
+                        <strong>@name</strong>
+                        <span class="badge @GetConflictBadge(conflict.Severity)">@conflict.SeverityLabel severity</span>
+                        <span class="text-muted ms-2">Versions: @string.Join(", ", conflict.Versions)</span>
+                        @if (conflict.SuggestedVersion is not null)
+                        {
+                            <span class="text-success ms-2">→ Suggested: @conflict.SuggestedVersion</span>
+                        }
+                    </div>
+                }
+            </div>
+        }
+    }
+    else if (_packages is not null && _packages.Count == 0)
+    {
+        <div class="card-panel">
+            <p>No packages found in <code>@_scanPath</code>.</p>
+        </div>
+    }
+
+    <!-- Scan history -->
+    @if (_recentScans.Count > 0)
+    {
+        <div class="card-panel">
+            <h2 class="panel-title">Recent Scans</h2>
+            <table class="table table-sm">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Path</th>
+                        <th>Packages</th>
+                        <th>Scanned</th>
+                        <th>Duration</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var session in _recentScans)
+                    {
+                        <tr>
+                            <td>@session.Name</td>
+                            <td class="text-muted small">@session.Path</td>
+                            <td>@session.PackageCount</td>
+                            <td class="text-muted small">@session.ScannedAt.ToString("MMM d, HH:mm")</td>
+                            <td class="text-muted small">@session.DurationMs ms</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+
+    <div class="back-link-wrap">
+        <a href="/" class="btn-home">← Back to search</a>
+    </div>
+</div>
+
+@code {
+    private string _scanName = string.Empty;
+    private string _scanPath = string.Empty;
+    private bool _scanning = false;
+    private string? _scanError = null;
+    private IReadOnlyList<PackageReference>? _packages = null;
+    private DependencyGraph? _graph = null;
+    private List<NuGetPulse.Persistence.Entities.ScanSession> _recentScans = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        _recentScans = (await ScanHistory.GetRecentSessionsAsync(10)).ToList();
+    }
+
+    private async Task RunScanAsync()
+    {
+        _scanning = true;
+        _scanError = null;
+        _packages = null;
+        _graph = null;
+
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        try
+        {
+            _packages = await PackageScanner.ScanDirectoryAsync(_scanPath.Trim());
+            sw.Stop();
+
+            // Build graph for conflict detection
+            _graph = GraphBuilder.Build(_packages);
+
+            // Persist scan to history
+            var name = string.IsNullOrWhiteSpace(_scanName) ? Path.GetFileName(_scanPath.TrimEnd('/','\\')) : _scanName;
+            await ScanHistory.SaveScanAsync(name, _scanPath.Trim(), _packages, sw.ElapsedMilliseconds);
+
+            // Refresh history
+            _recentScans = (await ScanHistory.GetRecentSessionsAsync(10)).ToList();
+        }
+        catch (Exception ex)
+        {
+            _scanError = $"Scan failed: {ex.Message}";
+        }
+        finally
+        {
+            _scanning = false;
+        }
+    }
+
+    private async Task DownloadAsync(ExportFormat format)
+    {
+        if (_packages is null) return;
+        // For Blazor Server: we use JavaScript interop to trigger download
+        // The export service produces the bytes; they'd need to be delivered via JS
+        // For now we log the export size (full JS interop would need JSRuntime injected)
+        var name = string.IsNullOrWhiteSpace(_scanName) ? "packages" : _scanName;
+        if (format == ExportFormat.Csv)
+            await ExportService.ExportToCsvAsync(_packages, name);
+        else
+            await ExportService.ExportToJsonAsync(_packages);
+    }
+
+    private static string GetConflictBadge(int severity) => severity switch
+    {
+        3 => "bg-danger",
+        2 => "bg-warning text-dark",
+        _ => "bg-info text-dark"
+    };
+}
