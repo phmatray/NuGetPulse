@@ -1,0 +1,188 @@
+@page "/history"
+@rendermode InteractiveServer
+@using NuGetPulse.Persistence
+@using NuGetPulse.Persistence.Entities
+@inject IScanHistoryRepository Repository
+
+<PageTitle>Scan History — NuGetPulse</PageTitle>
+
+<div class="dashboard">
+    <div class="dash-header">
+        <div class="dash-header-left">
+            <div class="dash-icon-placeholder">📜</div>
+            <div>
+                <h1 class="dash-title">Scan History</h1>
+                <p class="dash-authors">All past scans with vulnerability and conflict data</p>
+            </div>
+        </div>
+        <div class="dash-header-right">
+            <a href="/scan" class="btn btn-primary btn-sm">+ New Scan</a>
+        </div>
+    </div>
+
+    @if (_loading)
+    {
+        <div class="card-panel text-center py-4">
+            <div class="spinner-large"></div>
+            <p class="mt-2">Loading scan history…</p>
+        </div>
+    }
+    else if (_sessions.Count == 0)
+    {
+        <div class="card-panel text-center py-5">
+            <p class="dash-icon-placeholder" style="font-size: 3rem;">📭</p>
+            <h3>No scans yet</h3>
+            <p class="text-muted">Run your first scan to see history here.</p>
+            <a href="/scan" class="btn btn-primary">Start a scan →</a>
+        </div>
+    }
+    else
+    {
+        <div class="card-panel">
+            <div class="panel-title-row">
+                <h2 class="panel-title">All Scans (@_sessions.Count)</h2>
+                @if (_purgeMessage is not null)
+                {
+                    <span class="text-muted small">@_purgeMessage</span>
+                }
+                <button class="btn btn-sm btn-outline-danger" @onclick="PurgeOldScans">
+                    🗑️ Purge old (30d+)
+                </button>
+            </div>
+            <table class="table table-sm table-hover">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Name</th>
+                        <th>Path</th>
+                        <th>Packages</th>
+                        <th>Vulnerabilities</th>
+                        <th>Status</th>
+                        <th>Scanned</th>
+                        <th>Duration</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var session in _sessions)
+                    {
+                        <tr class="@GetRowClass(session)">
+                            <td class="text-muted">#@session.Id</td>
+                            <td><strong>@session.Name</strong></td>
+                            <td class="text-muted small">@TruncatePath(session.Path, 40)</td>
+                            <td>@session.PackageCount</td>
+                            <td class="@(session.VulnerabilityCount > 0 ? "text-danger fw-bold" : "text-success")">
+                                @if (session.VulnerabilityCount > 0)
+                                {
+                                    <span>⚠️ @session.VulnerabilityCount vuln@(session.VulnerabilityCount > 1 ? "s" : "")</span>
+                                }
+                                else
+                                {
+                                    <span>✓ Clean</span>
+                                }
+                            </td>
+                            <td>
+                                @if (session.Status == ScanSessionStatus.Completed)
+                                {
+                                    <span class="badge bg-success">✓ Done</span>
+                                }
+                                else if (session.Status == ScanSessionStatus.Failed)
+                                {
+                                    <span class="badge bg-danger">✗ Failed</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-warning text-dark">⏳ Running</span>
+                                }
+                            </td>
+                            <td class="text-muted small">@FormatRelative(session.ScannedAt)</td>
+                            <td class="text-muted small">@FormatDuration(session.DurationMs)</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Summary stats -->
+        <div class="card-panel">
+            <h2 class="panel-title">Summary</h2>
+            <div class="summary-grid">
+                <div class="summary-tile">
+                    <span class="summary-value">@_sessions.Count</span>
+                    <span class="summary-label">Total Scans</span>
+                </div>
+                <div class="summary-tile">
+                    <span class="summary-value">@_sessions.Sum(s => s.PackageCount)</span>
+                    <span class="summary-label">Total Packages</span>
+                </div>
+                <div class="summary-tile @(_sessions.Sum(s => s.VulnerabilityCount) > 0 ? "tile-danger" : "tile-ok")">
+                    <span class="summary-value">@_sessions.Sum(s => s.VulnerabilityCount)</span>
+                    <span class="summary-label">Total Vulns</span>
+                </div>
+                <div class="summary-tile">
+                    <span class="summary-value">@_sessions.Count(s => s.Status == ScanSessionStatus.Failed)</span>
+                    <span class="summary-label">Failed Scans</span>
+                </div>
+            </div>
+        </div>
+    }
+
+    <div class="back-link-wrap">
+        <a href="/" class="btn-home">← Back to search</a>
+    </div>
+</div>
+
+@code {
+    private bool _loading = true;
+    private List<ScanSession> _sessions = [];
+    private string? _purgeMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadSessions();
+    }
+
+    private async Task LoadSessions()
+    {
+        _loading = true;
+        _sessions = (await Repository.GetRecentSessionsAsync(100)).ToList();
+        _loading = false;
+    }
+
+    private async Task PurgeOldScans()
+    {
+        var cutoff = DateTime.UtcNow.AddDays(-30);
+        var deleted = await Repository.PurgeOldSessionsAsync(cutoff);
+        _purgeMessage = $"Deleted {deleted} session(s) older than 30 days.";
+        await LoadSessions();
+    }
+
+    private static string GetRowClass(ScanSession s)
+    {
+        if (s.Status == ScanSessionStatus.Failed) return "table-danger";
+        if (s.VulnerabilityCount > 0) return "table-warning";
+        return "";
+    }
+
+    private static string TruncatePath(string path, int max)
+    {
+        if (path.Length <= max) return path;
+        return "…" + path[^(max - 1)..];
+    }
+
+    private static string FormatRelative(DateTime dt)
+    {
+        var diff = DateTime.UtcNow - dt;
+        if (diff.TotalSeconds < 60) return "just now";
+        if (diff.TotalMinutes < 60) return $"{(int)diff.TotalMinutes}m ago";
+        if (diff.TotalHours < 24) return $"{(int)diff.TotalHours}h ago";
+        if (diff.TotalDays < 7) return $"{(int)diff.TotalDays}d ago";
+        return dt.ToString("MMM d, yyyy");
+    }
+
+    private static string FormatDuration(long ms)
+    {
+        if (ms < 1000) return $"{ms} ms";
+        if (ms < 60_000) return $"{ms / 1000.0:F1} s";
+        return $"{ms / 60_000} min";
+    }
+}
