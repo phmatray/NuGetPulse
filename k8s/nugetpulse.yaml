@@ -4,19 +4,6 @@ kind: Namespace
 metadata:
   name: nugetpulse
 ---
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: nugetpulse-data
-  namespace: nugetpulse
-spec:
-  accessModes:
-    - ReadWriteMany
-  resources:
-    requests:
-      storage: 1Gi
-  storageClassName: local-path
----
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -49,9 +36,6 @@ spec:
               value: "/app/data/keys"
             - name: Database__Path
               value: "/app/data/nugetpulse.db"
-          volumeMounts:
-            - name: data
-              mountPath: /app/data
           resources:
             requests:
               memory: "256Mi"
@@ -73,10 +57,6 @@ spec:
             initialDelaySeconds: 10
             periodSeconds: 10
             failureThreshold: 3
-      volumes:
-        - name: data
-          persistentVolumeClaim:
-            claimName: nugetpulse-data
 ---
 apiVersion: v1
 kind: Service
