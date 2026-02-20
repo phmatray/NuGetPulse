@@ -28,6 +28,7 @@
     <ProjectReference Include="..\..\src\NuGetPulse.Graph\NuGetPulse.Graph.csproj" />
     <ProjectReference Include="..\..\src\NuGetPulse.Export\NuGetPulse.Export.csproj" />
     <ProjectReference Include="..\..\src\NuGetPulse.Persistence\NuGetPulse.Persistence.csproj" />
+    <ProjectReference Include="..\..\src\NuGetPulse.Web\NuGetPulse.Web.csproj" />
   </ItemGroup>
 
 </Project>
