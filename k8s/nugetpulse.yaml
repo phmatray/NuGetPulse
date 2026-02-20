@@ -36,7 +36,7 @@ spec:
     spec:
       containers:
         - name: nugetpulse
-          image: docker.io/library/nugetpulse:20260219-1219
+          image: docker.io/library/nugetpulse:20260220-2019
           imagePullPolicy: Never
           ports:
             - containerPort: 8080
