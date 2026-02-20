@@ -39,6 +39,14 @@ var dbPath = builder.Configuration.GetValue<string>("Database:Path")
              ?? Path.Combine(builder.Environment.ContentRootPath, "nugetpulse.db");
 builder.Services.AddNuGetPulsePersistence(dbPath);
 
+// ── Data Protection (persist keys for multi-pod deployments) ─────────────────
+var keysPath = builder.Configuration.GetValue<string>("DataProtection:KeysPath")
+              ?? Path.Combine(builder.Environment.ContentRootPath, "keys");
+Directory.CreateDirectory(keysPath);
+builder.Services.AddDataProtection()
+    .PersistKeysToFileSystem(new DirectoryInfo(keysPath))
+    .SetApplicationName("NuGetPulse");
+
 // ── Health Checks ─────────────────────────────────────────────────────────────
 builder.Services.AddHealthChecks();
 
