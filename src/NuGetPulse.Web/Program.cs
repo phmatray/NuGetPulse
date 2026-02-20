@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.DataProtection;
 using NuGetPulse.Export;
 using NuGetPulse.Graph;
 using NuGetPulse.Persistence;
