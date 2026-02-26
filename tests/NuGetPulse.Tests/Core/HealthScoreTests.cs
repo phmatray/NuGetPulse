@@ -42,7 +42,7 @@ public sealed class HealthScoreTests
     public void Compute_ScoreIsCappedAt100()
     {
         var score = HealthScore.Compute(100_000_000, DateTime.UtcNow, 0, false);
-        score.Score.Should().BeLessOrEqualTo(100);
+        score.Score.Should().BeLessThanOrEqualTo(100);
     }
 
     [Fact]
