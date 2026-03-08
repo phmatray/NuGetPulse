@@ -3,7 +3,7 @@
 [![Build](https://github.com/phmatray/NuGetPulse/actions/workflows/ci.yml/badge.svg)](https://github.com/phmatray/NuGetPulse/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![.NET](https://img.shields.io/badge/.NET-10.0-purple.svg)](https://dotnet.microsoft.com)
-[![Tests](https://img.shields.io/badge/tests-57%20passing-brightgreen.svg)](#)
+[![Tests](https://img.shields.io/badge/tests-63%20passing-brightgreen.svg)](#)
 
 **NuGetPulse** is the all-in-one NuGet health platform for .NET teams.  
 Search packages, scan your projects for vulnerabilities and version conflicts, track history, and export reports — all in one dark-mode Blazor dashboard.
@@ -58,7 +58,7 @@ NuGetPulse/
 │   ├── NuGetPulse.Export/       # CSV / JSON export
 │   └── NuGetPulse.Server/       # Self-hosted NuGet package store
 ├── tests/
-│   └── NuGetPulse.Tests/        # 57 unit + integration tests
+│   └── NuGetPulse.Tests/        # 63 unit + integration tests
 ├── k8s/                         # Kubernetes manifests
 ├── Dockerfile
 ├── global.json                  # SDK 10.0.103 pinned
@@ -95,7 +95,7 @@ docker run -p 8080:8080 nugetpulse
 
 ```bash
 dotnet test
-# 57 tests, 0 failures
+# 63 tests, 0 failures
 ```
 
 ---
@@ -144,7 +144,7 @@ After a scan, use the **Export CSV** or **Export JSON** buttons to download the 
 
 ## 🧪 Tests
 
-NuGetPulse has **57 unit and integration tests** across all layers:
+NuGetPulse has **63 unit and integration tests** across all layers:
 
 | Module | Tests | Coverage |
 |--------|-------|----------|
@@ -185,15 +185,116 @@ NuGetPulse consolidates four previously separate tools:
 
 ---
 
-## Contributing
+## 🚢 Deployment
 
-Pull requests are welcome. For major changes, open an issue first.
+### Docker
+
+The simplest way to deploy NuGetPulse is via Docker:
 
 ```bash
-# Fork → branch → change → test → PR
-git checkout -b feat/my-improvement
-dotnet test  # must pass before PR
+# Build the image
+docker build -t nugetpulse:latest .
+
+# Run the container
+docker run -d \
+  -p 8080:8080 \
+  -v /path/to/data:/app/data \
+  --name nugetpulse \
+  nugetpulse:latest
 ```
+
+The SQLite database and scan history will be persisted in `/app/data`.
+
+### Kubernetes
+
+NuGetPulse includes Kubernetes manifests in the `k8s/` directory:
+
+```bash
+# Create namespace
+kubectl create namespace nugetpulse
+
+# Apply manifests
+kubectl apply -f k8s/ -n nugetpulse
+
+# Check deployment
+kubectl get pods -n nugetpulse
+kubectl get svc -n nugetpulse
+```
+
+**Persistent Storage:**
+Ensure you configure a PersistentVolumeClaim for `/app/data` to persist scan history across pod restarts.
+
+### Docker Compose (Development)
+
+For local development with hot-reload:
+
+```yaml
+version: '3.8'
+services:
+  nugetpulse:
+    build: .
+    ports:
+      - "5000:8080"
+    volumes:
+      - ./data:/app/data
+      - ./src:/app/src:ro
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:8080
+```
+
+Save as `docker-compose.yml` and run:
+```bash
+docker-compose up
+```
+
+### Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `ASPNETCORE_URLS` | `http://+:8080` | Listening address |
+| `ASPNETCORE_ENVIRONMENT` | `Production` | Environment (`Development`, `Staging`, `Production`) |
+| `ConnectionStrings__DefaultConnection` | `Data Source=data/nugetpulse.db` | SQLite database path |
+
+### Production Best Practices
+
+1. **HTTPS**: Use a reverse proxy (nginx, Traefik, Azure App Service) with TLS
+2. **Persistent Storage**: Mount a volume for `/app/data` to persist SQLite database
+3. **Resource Limits**: Set CPU/memory limits in Kubernetes to prevent resource exhaustion during large scans
+4. **Monitoring**: Check logs via `kubectl logs` or Docker logs
+5. **Backups**: Regularly backup the SQLite database (`/app/data/nugetpulse.db`)
+
+---
+
+## 🤝 Contributing
+
+Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) for details on:
+- Development setup and workflow
+- Code standards and architecture
+- Testing requirements
+- Pull request process
+
+Quick start for contributors:
+
+```bash
+# Fork and clone
+git clone https://github.com/YOUR-USERNAME/NuGetPulse.git
+cd NuGetPulse
+
+# Create a feature branch
+git checkout -b feat/my-improvement
+
+# Make changes, add tests
+dotnet test  # must pass before PR
+
+# Commit with conventional commits
+git commit -m "feat(scanner): add support for paket.dependencies"
+
+# Push and create PR
+git push origin feat/my-improvement
+```
+
+For bug reports and feature requests, please [open an issue](https://github.com/phmatray/NuGetPulse/issues/new).
 
 ---
 
