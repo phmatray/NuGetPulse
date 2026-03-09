@@ -1,4 +1,4 @@
-using FluentAssertions;
+using Shouldly;
 using NuGetPulse.Core.Models;
 using NuGetPulse.Graph;
 using NuGetPulse.Graph.Models;
@@ -15,9 +15,9 @@ public sealed class DependencyGraphBuilderTests
     {
         var graph = _sut.Build([]);
 
-        graph.Nodes.Should().BeEmpty();
-        graph.Edges.Should().BeEmpty();
-        graph.Conflicts.Should().BeEmpty();
+        graph.Nodes.ShouldBeEmpty();
+        graph.Edges.ShouldBeEmpty();
+        graph.Conflicts.ShouldBeEmpty();
     }
 
     [Fact]
@@ -30,9 +30,9 @@ public sealed class DependencyGraphBuilderTests
 
         var graph = _sut.Build(packages);
 
-        graph.Nodes.Should().HaveCount(2, "one package node + one project node");
-        graph.Edges.Should().HaveCount(1, "one edge: project → package");
-        graph.Conflicts.Should().BeEmpty();
+        graph.Nodes.Count().ShouldBe(2, "one package node + one project node");
+        graph.Edges.Count().ShouldBe(1, "one edge: project → package");
+        graph.Conflicts.ShouldBeEmpty();
     }
 
     [Fact]
@@ -46,13 +46,13 @@ public sealed class DependencyGraphBuilderTests
 
         var graph = _sut.Build(packages, new DependencyGraphOptions { HighlightConflicts = true });
 
-        graph.Conflicts.Should().ContainKey("Serilog");
+        graph.Conflicts.ShouldContainKey("Serilog");
         var conflict = graph.Conflicts["Serilog"];
-        conflict.Versions.Should().HaveCount(2);
-        conflict.Severity.Should().Be(3, "major version difference → severity 3");
+        conflict.Versions.Count().ShouldBe(2);
+        conflict.Severity.ShouldBe(3, "major version difference → severity 3");
 
         var conflictNodes = graph.Nodes.Where(n => n.HasConflict).ToList();
-        conflictNodes.Should().HaveCount(2);
+        conflictNodes.Count().ShouldBe(2);
     }
 
     [Fact]
@@ -70,8 +70,8 @@ public sealed class DependencyGraphBuilderTests
         // One package node (FA 7.0.0), two project nodes
         var pkgNodes = graph.Nodes.Where(n => n.Type == NodeType.RootPackage
                                            && n.PackageId == "FluentAssertions").ToList();
-        pkgNodes.Should().HaveCount(1, "same version should only produce one package node");
-        graph.Conflicts.Should().BeEmpty("same version means no conflict");
+        pkgNodes.Count().ShouldBe(1, "same version should only produce one package node");
+        graph.Conflicts.ShouldBeEmpty();
     }
 
     [Fact]
@@ -85,7 +85,7 @@ public sealed class DependencyGraphBuilderTests
 
         var graph = _sut.Build(packages, new DependencyGraphOptions { HighlightConflicts = true });
 
-        graph.Conflicts["Moq"].Severity.Should().Be(1, "only patch differs → low severity");
+        graph.Conflicts["Moq"].Severity.ShouldBe(1, "only patch differs → low severity");
     }
 
     [Fact]
@@ -99,7 +99,7 @@ public sealed class DependencyGraphBuilderTests
 
         var graph = _sut.Build(packages, new DependencyGraphOptions { HighlightConflicts = true });
 
-        graph.Conflicts["MediatR"].Severity.Should().Be(2, "minor version differs → medium severity");
+        graph.Conflicts["MediatR"].Severity.ShouldBe(2, "minor version differs → medium severity");
     }
 
     [Fact]
@@ -113,7 +113,7 @@ public sealed class DependencyGraphBuilderTests
 
         var graph = _sut.Build(packages, new DependencyGraphOptions { HighlightConflicts = false });
 
-        graph.Conflicts.Should().BeEmpty();
-        graph.Edges.Should().NotContain(e => e.IsConflict);
+        graph.Conflicts.ShouldBeEmpty();
+        graph.Edges.ShouldNotContain(e => e.IsConflict);
     }
 }

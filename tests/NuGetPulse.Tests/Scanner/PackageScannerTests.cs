@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using NuGetPulse.Core.Models;
 using NuGetPulse.Scanner;
-using FluentAssertions;
+using Shouldly;
 
 namespace NuGetPulse.Tests.Scanner;
 
@@ -30,10 +30,10 @@ public sealed class PackageScannerTests : IDisposable
 
         var results = await _sut.ScanProjectFileAsync(path);
 
-        results.Should().HaveCount(2);
-        results.Should().Contain(p => p.PackageName == "Newtonsoft.Json" && p.Version == "13.0.3");
-        results.Should().Contain(p => p.PackageName == "FluentAssertions" && p.Version == "7.0.0");
-        results.Should().AllSatisfy(p => p.SourceType.Should().Be(PackageSourceType.ProjectFile));
+        results.Count().ShouldBe(2);
+        results.ShouldContain(p => p.PackageName == "Newtonsoft.Json" && p.Version == "13.0.3");
+        results.ShouldContain(p => p.PackageName == "FluentAssertions" && p.Version == "7.0.0");
+        results.ShouldAllBe(p => p.SourceType == PackageSourceType.ProjectFile);
     }
 
     [Fact]
@@ -50,9 +50,9 @@ public sealed class PackageScannerTests : IDisposable
 
         var results = await _sut.ScanProjectFileAsync(path);
 
-        results.Should().HaveCount(1);
-        results[0].PackageName.Should().Be("NSubstitute");
-        results[0].Version.Should().Be("CPM");
+        results.Count().ShouldBe(1);
+        results[0].PackageName.ShouldBe("NSubstitute");
+        results[0].Version.ShouldBe("CPM");
     }
 
     [Fact]
@@ -68,7 +68,7 @@ public sealed class PackageScannerTests : IDisposable
 
         var results = await _sut.ScanProjectFileAsync(path);
 
-        results.Should().BeEmpty();
+        results.ShouldBeEmpty();
     }
 
     // ─── ScanPackagesConfigAsync ───────────────────────────────────────────────
@@ -86,10 +86,10 @@ public sealed class PackageScannerTests : IDisposable
 
         var results = await _sut.ScanPackagesConfigAsync(path);
 
-        results.Should().HaveCount(2);
-        results.Should().Contain(p => p.PackageName == "log4net" && p.Version == "2.0.15");
-        results.Should().Contain(p => p.PackageName == "Newtonsoft.Json");
-        results.Should().AllSatisfy(p => p.Type.Should().Be(PackageType.PackagesConfig));
+        results.Count().ShouldBe(2);
+        results.ShouldContain(p => p.PackageName == "log4net" && p.Version == "2.0.15");
+        results.ShouldContain(p => p.PackageName == "Newtonsoft.Json");
+        results.ShouldAllBe(p => p.Type == PackageType.PackagesConfig);
     }
 
     // ─── ScanDirectoryPackagesPropsAsync ──────────────────────────────────────
@@ -108,11 +108,11 @@ public sealed class PackageScannerTests : IDisposable
 
         var results = await _sut.ScanDirectoryPackagesPropsAsync(path);
 
-        results.Should().HaveCount(2);
-        results.Should().AllSatisfy(p => p.IsCentrallyManaged.Should().BeTrue());
-        results.Should().AllSatisfy(p =>
-            p.SourceType.Should().Be(PackageSourceType.DirectoryPackagesProps));
-        results.Should().Contain(p => p.PackageName == "Microsoft.Extensions.Logging" && p.Version == "10.0.0");
+        results.Count().ShouldBe(2);
+        results.ShouldAllBe(p => p.IsCentrallyManaged);
+        results.ShouldAllBe(p =>
+            p.SourceType == PackageSourceType.DirectoryPackagesProps);
+        results.ShouldContain(p => p.PackageName == "Microsoft.Extensions.Logging" && p.Version == "10.0.0");
     }
 
     // ─── ScanDirectoryAsync ───────────────────────────────────────────────────
@@ -151,10 +151,10 @@ public sealed class PackageScannerTests : IDisposable
             // Serilog 4.0.0 in App.csproj, Serilog 4.0.0 in Lib.csproj = 2 entries (different source files)
             // FluentAssertions 7.0.0 in Lib.csproj = 1 entry
             // Total = 3
-            results.Should().HaveCount(3,
+            results.Count().ShouldBe(3,
                 "deduplication is per (Name, Version, SourceFile): Serilog appears in 2 files + FluentAssertions in 1 file");
-            results.Where(p => p.PackageName == "Serilog").Should().HaveCount(2);
-            results.Where(p => p.PackageName == "FluentAssertions").Should().HaveCount(1);
+            results.Where(p => p.PackageName == "Serilog").Count().ShouldBe(2);
+            results.Where(p => p.PackageName == "FluentAssertions").Count().ShouldBe(1);
         }
         finally
         {
@@ -168,7 +168,7 @@ public sealed class PackageScannerTests : IDisposable
     public async Task ScanProjectFile_FileNotFound_ThrowsFileNotFoundException()
     {
         var act = async () => await _sut.ScanProjectFileAsync("/non-existent/file.csproj");
-        await act.Should().ThrowAsync<FileNotFoundException>();
+        await Should.ThrowAsync<FileNotFoundException>(act);
     }
 
     [Fact]
@@ -176,7 +176,7 @@ public sealed class PackageScannerTests : IDisposable
     {
         var path = WriteTempFile("readme.txt", "hello");
         var act = async () => await _sut.ScanProjectFileAsync(path);
-        await act.Should().ThrowAsync<ArgumentException>();
+        await Should.ThrowAsync<ArgumentException>(act);
     }
 
     // ─── Helpers ──────────────────────────────────────────────────────────────

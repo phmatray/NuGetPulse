@@ -1,4 +1,4 @@
-using FluentAssertions;
+using Shouldly;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using NuGetPulse.Core.Models;
@@ -52,13 +52,13 @@ public sealed class ScanHistoryRepositoryTests : IDisposable
         var packages = SamplePackages(3);
         var session = await _sut.SaveScanAsync("MyProject", "/src/MyProject", packages, durationMs: 42);
 
-        session.Id.Should().BeGreaterThan(0);
-        session.Name.Should().Be("MyProject");
-        session.Path.Should().Be("/src/MyProject");
-        session.PackageCount.Should().Be(3);
-        session.DurationMs.Should().Be(42);
-        session.Status.Should().Be(ScanSessionStatus.Completed);
-        session.Packages.Should().HaveCount(3);
+        session.Id.ShouldBeGreaterThan(0);
+        session.Name.ShouldBe("MyProject");
+        session.Path.ShouldBe("/src/MyProject");
+        session.PackageCount.ShouldBe(3);
+        session.DurationMs.ShouldBe(42);
+        session.Status.ShouldBe(ScanSessionStatus.Completed);
+        session.Packages.Count().ShouldBe(3);
     }
 
     [Fact]
@@ -66,7 +66,7 @@ public sealed class ScanHistoryRepositoryTests : IDisposable
     {
         var session = await _sut.SaveScanAsync("Proj", "/src", SamplePackages(1), 100, vulnerabilityCount: 5);
 
-        session.VulnerabilityCount.Should().Be(5);
+        session.VulnerabilityCount.ShouldBe(5);
     }
 
     [Fact]
@@ -74,8 +74,8 @@ public sealed class ScanHistoryRepositoryTests : IDisposable
     {
         var session = await _sut.SaveScanAsync("Empty", "/src/empty", [], durationMs: 10);
 
-        session.PackageCount.Should().Be(0);
-        session.Packages.Should().BeEmpty();
+        session.PackageCount.ShouldBe(0);
+        session.Packages.ShouldBeEmpty();
     }
 
     // ─── GetRecentSessionsAsync ───────────────────────────────────────────────
@@ -91,9 +91,9 @@ public sealed class ScanHistoryRepositoryTests : IDisposable
 
         var sessions = await _sut.GetRecentSessionsAsync(10);
 
-        sessions.Should().HaveCount(3);
-        sessions[0].Name.Should().Be("Third", "most recent first");
-        sessions[2].Name.Should().Be("First", "oldest last");
+        sessions.Count().ShouldBe(3);
+        sessions[0].Name.ShouldBe("Third", "most recent first");
+        sessions[2].Name.ShouldBe("First", "oldest last");
     }
 
     [Fact]
@@ -104,7 +104,7 @@ public sealed class ScanHistoryRepositoryTests : IDisposable
 
         var sessions = await _sut.GetRecentSessionsAsync(limit: 3);
 
-        sessions.Should().HaveCount(3);
+        sessions.Count().ShouldBe(3);
     }
 
     [Fact]
@@ -112,7 +112,7 @@ public sealed class ScanHistoryRepositoryTests : IDisposable
     {
         var sessions = await _sut.GetRecentSessionsAsync();
 
-        sessions.Should().BeEmpty();
+        sessions.ShouldBeEmpty();
     }
 
     // ─── GetSessionAsync ──────────────────────────────────────────────────────
@@ -124,9 +124,9 @@ public sealed class ScanHistoryRepositoryTests : IDisposable
 
         var retrieved = await _sut.GetSessionAsync(saved.Id);
 
-        retrieved.Should().NotBeNull();
-        retrieved!.Name.Should().Be("Proj");
-        retrieved.Packages.Should().HaveCount(2);
+        retrieved.ShouldNotBeNull();
+        retrieved!.Name.ShouldBe("Proj");
+        retrieved.Packages.Count().ShouldBe(2);
     }
 
     [Fact]
@@ -134,7 +134,7 @@ public sealed class ScanHistoryRepositoryTests : IDisposable
     {
         var result = await _sut.GetSessionAsync(999);
 
-        result.Should().BeNull();
+        result.ShouldBeNull();
     }
 
     // ─── GetPackageHistoryAsync ───────────────────────────────────────────────
@@ -156,9 +156,9 @@ public sealed class ScanHistoryRepositoryTests : IDisposable
 
         var history = await _sut.GetPackageHistoryAsync("Serilog");
 
-        history.Should().HaveCount(2);
-        history.Should().Contain(p => p.Version == "3.0.0");
-        history.Should().Contain(p => p.Version == "4.0.0");
+        history.Count().ShouldBe(2);
+        history.ShouldContain(p => p.Version == "3.0.0");
+        history.ShouldContain(p => p.Version == "4.0.0");
     }
 
     [Fact]
@@ -166,7 +166,7 @@ public sealed class ScanHistoryRepositoryTests : IDisposable
     {
         var history = await _sut.GetPackageHistoryAsync("NonExistentPackage");
 
-        history.Should().BeEmpty();
+        history.ShouldBeEmpty();
     }
 
     // ─── PurgeOldSessionsAsync ────────────────────────────────────────────────
@@ -189,11 +189,11 @@ public sealed class ScanHistoryRepositoryTests : IDisposable
         var cutoff = DateTime.UtcNow.AddDays(-30);
         var deleted = await _sut.PurgeOldSessionsAsync(cutoff);
 
-        deleted.Should().Be(2);
+        deleted.ShouldBe(2);
 
         var remaining = await _sut.GetRecentSessionsAsync(100);
-        remaining.Should().HaveCount(1);
-        remaining[0].Name.Should().Be("Recent");
+        remaining.Count().ShouldBe(1);
+        remaining[0].Name.ShouldBe("Recent");
     }
 
     // ─── Cleanup ──────────────────────────────────────────────────────────────

@@ -1,5 +1,5 @@
 using System.Text.Json;
-using FluentAssertions;
+using Shouldly;
 using Microsoft.Extensions.Logging.Abstractions;
 using NuGetPulse.Core.Models;
 using NuGetPulse.Export;
@@ -26,9 +26,9 @@ public sealed class PackageExportServiceTests
     {
         var result = await _sut.ExportToCsvAsync(SamplePackages);
 
-        result.Format.Should().Be(ExportFormat.Csv);
-        result.MimeType.Should().Be("text/csv");
-        result.FileName.Should().EndWith(".csv");
+        result.Format.ShouldBe(ExportFormat.Csv);
+        result.MimeType.ShouldBe("text/csv");
+        result.FileName.ShouldEndWith(".csv");
     }
 
     [Fact]
@@ -36,9 +36,9 @@ public sealed class PackageExportServiceTests
     {
         var result = await _sut.ExportToCsvAsync(SamplePackages);
 
-        result.Data.Should().Contain("Newtonsoft.Json");
-        result.Data.Should().Contain("Serilog");
-        result.Data.Should().Contain("CsvHelper");
+        result.Data.ShouldContain("Newtonsoft.Json");
+        result.Data.ShouldContain("Serilog");
+        result.Data.ShouldContain("CsvHelper");
     }
 
     [Fact]
@@ -47,7 +47,7 @@ public sealed class PackageExportServiceTests
         var result = await _sut.ExportToCsvAsync(SamplePackages);
 
         var text = System.Text.Encoding.UTF8.GetString(result.BinaryData);
-        text.Should().Be(result.Data);
+        text.ShouldBe(result.Data);
     }
 
     [Fact]
@@ -55,7 +55,7 @@ public sealed class PackageExportServiceTests
     {
         var result = await _sut.ExportToCsvAsync(SamplePackages, title: "my-project");
 
-        result.FileName.Should().StartWith("my-project-");
+        result.FileName.ShouldStartWith("my-project-");
     }
 
     [Fact]
@@ -63,7 +63,7 @@ public sealed class PackageExportServiceTests
     {
         var result = await _sut.ExportToCsvAsync([]);
 
-        result.DataSize.Should().BeGreaterThanOrEqualTo(0);
+        result.DataSize.ShouldBeGreaterThanOrEqualTo(0);
     }
 
     // ─── JSON ─────────────────────────────────────────────────────────────────
@@ -73,9 +73,9 @@ public sealed class PackageExportServiceTests
     {
         var result = await _sut.ExportToJsonAsync(SamplePackages);
 
-        result.Format.Should().Be(ExportFormat.Json);
-        result.MimeType.Should().Be("application/json");
-        result.FileName.Should().EndWith(".json");
+        result.Format.ShouldBe(ExportFormat.Json);
+        result.MimeType.ShouldBe("application/json");
+        result.FileName.ShouldEndWith(".json");
     }
 
     [Fact]
@@ -84,7 +84,7 @@ public sealed class PackageExportServiceTests
         var result = await _sut.ExportToJsonAsync(SamplePackages);
 
         var act = () => JsonDocument.Parse(result.Data);
-        act.Should().NotThrow();
+        act();
     }
 
     [Fact]
@@ -93,7 +93,7 @@ public sealed class PackageExportServiceTests
         var result = await _sut.ExportToJsonAsync(SamplePackages);
 
         using var doc = JsonDocument.Parse(result.Data);
-        doc.RootElement.GetProperty("TotalPackages").GetInt32().Should().Be(SamplePackages.Count);
+        doc.RootElement.GetProperty("TotalPackages").GetInt32().ShouldBe(SamplePackages.Count);
     }
 
     [Fact]
@@ -102,6 +102,6 @@ public sealed class PackageExportServiceTests
         var indented = await _sut.ExportToJsonAsync(SamplePackages, indented: true);
         var compact = await _sut.ExportToJsonAsync(SamplePackages, indented: false);
 
-        compact.Data.Length.Should().BeLessThan(indented.Data.Length);
+        compact.Data.Length.ShouldBeLessThan(indented.Data.Length);
     }
 }
