@@ -32,8 +32,8 @@ public class NuGetServiceIntegrationTests
         var results = await _service.SearchAsync(query);
 
         // Assert
-        results.Should().NotBeEmpty();
-        results.Should().Contain(r => r.Id.Equals("Mutty", StringComparison.OrdinalIgnoreCase));
+        results.ShouldNotBeEmpty();
+        results.ShouldContain(r => r.Id.Equals("Mutty", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]
@@ -46,11 +46,11 @@ public class NuGetServiceIntegrationTests
         var stats = await _service.GetPackageStatsAsync(packageId);
 
         // Assert
-        stats.Should().NotBeNull();
-        stats!.Id.Should().Be("Mutty");
-        stats.Version.Should().NotBeNullOrEmpty();
-        stats.TotalDownloads.Should().BeGreaterThan(0);
-        stats.Authors.Should().NotBeNullOrEmpty();
+        stats.ShouldNotBeNull();
+        stats!.Id.ShouldBe("Mutty");
+        stats.Version.ShouldNotBeNullOrEmpty();
+        stats.TotalDownloads.ShouldBeGreaterThan(0);
+        stats.Authors.ShouldNotBeNullOrEmpty();
     }
 
     [Theory]
@@ -63,8 +63,8 @@ public class NuGetServiceIntegrationTests
         var results = await _service.SearchAsync(packageName);
 
         // Assert
-        results.Should().NotBeEmpty();
-        results.Should().Contain(r => r.Id.Equals(packageName, StringComparison.OrdinalIgnoreCase));
+        results.ShouldNotBeEmpty();
+        results.ShouldContain(r => r.Id.Equals(packageName, StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]
@@ -74,6 +74,6 @@ public class NuGetServiceIntegrationTests
         var results = await _service.SearchAsync("");
 
         // Assert
-        results.Should().BeEmpty();
+        results.ShouldBeEmpty();
     }
 }

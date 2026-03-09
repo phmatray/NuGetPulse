@@ -2,7 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
-using FluentAssertions;
+using Shouldly;
 using Microsoft.Extensions.Logging.Abstractions;
 using NuGetPulse.Core.Models;
 using NuGetPulse.Security;
@@ -75,10 +75,10 @@ public sealed class OsvClientTests
 
         var report = await client.ScanAsync("Newtonsoft.Json", "13.0.3");
 
-        report.PackageId.Should().Be("Newtonsoft.Json");
-        report.Version.Should().Be("13.0.3");
-        report.HasVulnerabilities.Should().BeFalse();
-        report.Count.Should().Be(0);
+        report.PackageId.ShouldBe("Newtonsoft.Json");
+        report.Version.ShouldBe("13.0.3");
+        report.HasVulnerabilities.ShouldBeFalse();
+        report.Count.ShouldBe(0);
     }
 
     [Fact]
@@ -88,13 +88,13 @@ public sealed class OsvClientTests
 
         var report = await client.ScanAsync("VulnerablePackage", "1.0.0");
 
-        report.HasVulnerabilities.Should().BeTrue();
-        report.Count.Should().Be(1);
-        report.Vulnerabilities[0].Id.Should().Be("GHSA-1234-5678-abcd");
-        report.Vulnerabilities[0].Severity.Should().Be(OsvSeverity.High);
-        report.Vulnerabilities[0].Summary.Should().Be("Remote code execution in Foo");
-        report.Vulnerabilities[0].Aliases.Should().Contain("CVE-2024-12345");
-        report.Vulnerabilities[0].ReferenceUrl.Should().Be("https://example.com/advisory");
+        report.HasVulnerabilities.ShouldBeTrue();
+        report.Count.ShouldBe(1);
+        report.Vulnerabilities[0].Id.ShouldBe("GHSA-1234-5678-abcd");
+        report.Vulnerabilities[0].Severity.ShouldBe(OsvSeverity.High);
+        report.Vulnerabilities[0].Summary.ShouldBe("Remote code execution in Foo");
+        report.Vulnerabilities[0].Aliases.ShouldContain("CVE-2024-12345");
+        report.Vulnerabilities[0].ReferenceUrl.ShouldBe("https://example.com/advisory");
     }
 
     [Fact]
@@ -104,10 +104,10 @@ public sealed class OsvClientTests
 
         var report = await client.ScanAsync("BadPackage", "0.1.0");
 
-        report.Count.Should().Be(3);
-        report.Vulnerabilities.Should().Contain(v => v.Severity == OsvSeverity.Critical);
-        report.Vulnerabilities.Should().Contain(v => v.Severity == OsvSeverity.Medium);
-        report.Vulnerabilities.Should().Contain(v => v.Severity == OsvSeverity.Low);
+        report.Count.ShouldBe(3);
+        report.Vulnerabilities.ShouldContain(v => v.Severity == OsvSeverity.Critical);
+        report.Vulnerabilities.ShouldContain(v => v.Severity == OsvSeverity.Medium);
+        report.Vulnerabilities.ShouldContain(v => v.Severity == OsvSeverity.Low);
     }
 
     [Fact]
@@ -119,8 +119,8 @@ public sealed class OsvClientTests
         var report = await client.ScanAsync("SomePackage", "1.0.0");
 
         // Should not throw; returns empty report (best-effort)
-        report.HasVulnerabilities.Should().BeFalse();
-        report.PackageId.Should().Be("SomePackage");
+        report.HasVulnerabilities.ShouldBeFalse();
+        report.PackageId.ShouldBe("SomePackage");
     }
 
     [Fact]
@@ -130,7 +130,7 @@ public sealed class OsvClientTests
 
         var report = await client.ScanAsync("SomePackage", "2.0.0");
 
-        report.HasVulnerabilities.Should().BeFalse();
+        report.HasVulnerabilities.ShouldBeFalse();
     }
 
     [Fact]
@@ -140,8 +140,8 @@ public sealed class OsvClientTests
 
         var report = await client.ScanAsync("SomePackage", "1.0.0");
 
-        report.HasVulnerabilities.Should().BeFalse();
-        report.Vulnerabilities.Should().BeEmpty();
+        report.HasVulnerabilities.ShouldBeFalse();
+        report.Vulnerabilities.ShouldBeEmpty();
     }
 
     // ─── ScanBatchAsync ───────────────────────────────────────────────────────
@@ -160,8 +160,8 @@ public sealed class OsvClientTests
 
         var reports = await client.ScanBatchAsync(packages);
 
-        reports.Should().HaveCount(3);
-        reports.Should().AllSatisfy(r => r.HasVulnerabilities.Should().BeFalse());
+        reports.Count().ShouldBe(3);
+        reports.ShouldAllBe(r => !r.HasVulnerabilities);
     }
 
     [Fact]
@@ -171,7 +171,7 @@ public sealed class OsvClientTests
 
         var reports = await client.ScanBatchAsync([]);
 
-        reports.Should().BeEmpty();
+        reports.ShouldBeEmpty();
     }
 
     // ─── Severity parsing edge cases ──────────────────────────────────────────
@@ -195,8 +195,8 @@ public sealed class OsvClientTests
         var client = CreateClient(json);
         var report = await client.ScanAsync("Pkg", "1.0.0");
 
-        report.Vulnerabilities.Should().HaveCount(1);
-        report.Vulnerabilities[0].Severity.Should().Be(expected);
+        report.Vulnerabilities.Count().ShouldBe(1);
+        report.Vulnerabilities[0].Severity.ShouldBe(expected);
     }
 
     // ─── Fake HTTP handler ────────────────────────────────────────────────────
