@@ -16,4 +16,8 @@
     <ProjectReference Include="..\NuGetPulse.Persistence\NuGetPulse.Persistence.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <PackageReference Include="TheAppManager" />
+  </ItemGroup>
+
 </Project>
